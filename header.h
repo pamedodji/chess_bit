@@ -126,7 +126,6 @@ void bishop_moves(const board *b, bitboard square, list_move *l, uint32_t piece)
 void queen_moves(const board *b, bitboard square, list_move *l);
 void king_moves(const board *b, list_move *l);
 void knight_moves(const board *b, bitboard square, list_move *l);
-void pawn_moves(const board *b, bitboard square, list_move *l);
 void pawn_all_moves(const board *b, list_move *l);
 void queen_all_moves(const board *b, list_move *l);
 void pseudo_legal_moves(const board *b, list_move *l);
@@ -147,6 +146,12 @@ bitboard zobrist_key(const board *b);
 /*******************************************************************
 **************************INLINE FUNCTIONS**************************
 ********************************************************************/
+
+static inline int pop_inplace(bitboard *square){
+    int trailling_zeros = __builtin_ctzll(*square);
+    *square &= *square - 1;
+    return trailling_zeros;
+}
 
 static inline int get_square_index(bitboard square){
     if (square == 0) 

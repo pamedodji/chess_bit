@@ -633,72 +633,180 @@ void king_moves(const board *b, list_move *l){
 
 }
 
-void pawn_moves(const board *b, bitboard square, list_move *l){
-    int row = get_row(square);
-    int col = get_column(square);
-    bitboard mask_row = ROWS[1];
-    bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
-    bitboard opp = b -> player_pieces[0];
-    if (b -> turn == BLACK){
-        mask_row = ROWS[6];
-        opp = b -> player_pieces[1];
-    }
+
+void pawn_all_moves(const board *b, list_move *l){
+    bitboard not_occupied = ~(b -> player_pieces[0] | b -> player_pieces[1]);
+    bitboard no_prom_pawns = (b -> pieces[PAWN + 6 * (b -> turn ^ 1)]) & ~ROWS[6 - 5 * (b -> turn ^ 1)]; //can't have pawns on last row
+    bitboard prom_pawns = (b -> pieces[PAWN + 6 *(b -> turn ^ 1)]) & ROWS[6 - 5 * (b -> turn ^ 1)];
+    bitboard opp = b -> player_pieces[b -> turn ^ 1];
+    bitboard all_moves = 0;
+    int trailling_zeros;
+
     if (b -> turn == WHITE){
-        if (((square << 8) & ~occupied) > 0){
-            l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square << 8), PAWN, NO_PROM); 
+        //forward
+        all_moves = ((no_prom_pawns) << 8) & not_occupied; 
+        bitboard double_forward = ((all_moves & ROWS[2]) << 8) & not_occupied;
+        while (all_moves){
+            trailling_zeros = pop_inplace(&all_moves);
+            l -> m[l -> index] = create_move(trailling_zeros - 8, trailling_zeros, PAWN, NO_PROM);
             (l -> index)++;
-        
-            if (((square & mask_row) > 0) && ((square << 16) & ~occupied) > 0){
-                l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square << 16), PAWN, NO_PROM); 
+        }
+        //Double forward
+        while (double_forward){
+            trailling_zeros = pop_inplace(&double_forward);
+            l -> m[l -> index] = create_move(trailling_zeros - 16, trailling_zeros, PAWN, NO_PROM);
+            (l -> index)++;
+        }
+        //Captures 
+        all_moves = ((no_prom_pawns & ~COLUMNS[7]) << 9) & opp; //right
+        while (all_moves){
+            trailling_zeros = pop_inplace(&all_moves);
+            l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, NO_PROM);
+            (l -> index)++;
+        }
+        all_moves = ((no_prom_pawns & ~COLUMNS[0]) << 7) & opp; //left
+        while (all_moves){
+            trailling_zeros = pop_inplace(&all_moves);
+            l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, NO_PROM);
+            (l -> index)++;
+        }
+        //promotion
+        if (prom_pawns){ //rare so we can skip this instructions very often
+            all_moves = (prom_pawns << 8) & not_occupied;
+            while (all_moves){
+                trailling_zeros = pop_inplace(&all_moves);
+                l -> m[l -> index] = create_move(trailling_zeros - 8, trailling_zeros, PAWN, QUEEN);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros - 8, trailling_zeros, PAWN, ROOK);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros - 8, trailling_zeros, PAWN, BISHOP);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros - 8, trailling_zeros, PAWN, KNIGHT);
+                (l -> index)++;
+            }
+            all_moves = ((prom_pawns & ~COLUMNS[7]) << 9) & opp; //right captures
+            while (all_moves){
+                trailling_zeros = pop_inplace(&all_moves);
+                l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, QUEEN);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, ROOK);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, BISHOP);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, KNIGHT);
+                (l -> index)++;
+            }
+            all_moves = ((prom_pawns & ~COLUMNS[0]) << 7) & opp; //left captures
+            while (all_moves){
+                trailling_zeros = pop_inplace(&all_moves);
+                l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, QUEEN);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, ROOK);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, BISHOP);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, KNIGHT);
                 (l -> index)++;
             }
         }
-        if ((((square << 9) & opp)  > 0 ) && (row + 1 < 8) && (col + 1 < 8)){
-            l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square << 9), PAWN, NO_PROM); 
-            (l -> index)++;
+        //en_passant
+        if (b -> b_en_passant_flag != -1){
             
-        }
-        if ((((square << 7) & opp)  > 0 ) && (row + 1 < 8) && (col - 1 >= 0)){
-            l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square << 7), PAWN, NO_PROM); 
-            (l -> index)++;
-        }
-        if (4 == row && (b -> b_en_passant_flag == col + 1 ) && (col + 1 < 8)){
-            l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square << 9), PAWN, NO_PROM); 
-            (l -> index)++;
-        }
-        if (4 == row && ((b -> b_en_passant_flag == col - 1) && (col - 1 >= 0))){
-            l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square << 7), PAWN, NO_PROM); 
-            (l -> index)++;
+            int square_idx = 32 + b -> b_en_passant_flag; 
+            bitboard square = 1ULL << square_idx;
+            if (no_prom_pawns & ROWS[4] & (square << 1)){
+                l -> m[l -> index] = create_move(square_idx + 1 , square_idx + 8, PAWN, NO_PROM);
+                (l -> index)++;
+            }
+            if (no_prom_pawns & ROWS[4] & (square >> 1)){
+                l -> m[l -> index] = create_move(square_idx - 1 , square_idx + 8, PAWN, NO_PROM);
+                (l -> index)++;
+            }
         }
     }
-    if (b -> turn == BLACK){
-        if ((square >> 8  & ~occupied) > 0){
-            l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square >> 8), PAWN, NO_PROM); 
+    else{
+        //forward
+        all_moves = (no_prom_pawns >> 8) & not_occupied; 
+        bitboard double_forward = ((all_moves & ROWS[5]) >> 8) & not_occupied;
+        while (all_moves){
+            trailling_zeros = pop_inplace(&all_moves);
+            l -> m[l -> index] = create_move(trailling_zeros + 8, trailling_zeros, PAWN, NO_PROM);
             (l -> index)++;
-        
-            if (((square & mask_row) > 0) && ((square >> 16) & ~occupied) > 0){
-                l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square >> 16), PAWN, NO_PROM); 
+        }
+        //Double forward
+        while (double_forward){
+            trailling_zeros = pop_inplace(&double_forward);
+            l -> m[l -> index] = create_move(trailling_zeros + 16, trailling_zeros, PAWN, NO_PROM);
+            (l -> index)++;
+        }
+        //Captures 
+        all_moves = ((no_prom_pawns & ~COLUMNS[0]) >> 9) & opp; //right
+        while (all_moves){
+            trailling_zeros = pop_inplace(&all_moves);
+            l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, NO_PROM);
+            (l -> index)++;
+        }
+        all_moves = ((no_prom_pawns & ~COLUMNS[7]) >> 7) & opp; //left
+        while (all_moves){
+            trailling_zeros = pop_inplace(&all_moves);
+            l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, NO_PROM);
+            (l -> index)++;
+        }
+        //promotion
+        if (prom_pawns){ //rare so we can skip this instructions very often
+            all_moves = (prom_pawns >> 8) & not_occupied;
+            while (all_moves){
+                trailling_zeros = pop_inplace(&all_moves);
+                l -> m[l -> index] = create_move(trailling_zeros + 8, trailling_zeros, PAWN, QUEEN);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros + 8, trailling_zeros, PAWN, ROOK);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros + 8, trailling_zeros, PAWN, BISHOP);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros + 8, trailling_zeros, PAWN, KNIGHT);
+                (l -> index)++;
+            }
+            all_moves = ((prom_pawns & ~COLUMNS[0]) >> 9) & opp; //right captures
+            while (all_moves){
+                trailling_zeros = pop_inplace(&all_moves);
+                l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, QUEEN);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, ROOK);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, BISHOP);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, KNIGHT);
+                (l -> index)++;
+            }
+            all_moves = ((prom_pawns & ~COLUMNS[7]) >> 7) & opp; //left captures
+            while (all_moves){
+                trailling_zeros = pop_inplace(&all_moves);
+                l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, QUEEN);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, ROOK);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, BISHOP);
+                (l -> index)++;
+                l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, KNIGHT);
                 (l -> index)++;
             }
         }
-        if ((((square >> 9) & opp)  > 0 ) && (row - 1 >= 0) && (col - 1 >= 0)){
-            l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square >> 9), PAWN, NO_PROM); 
-            (l -> index)++;
+        //en_passant
+        if (b -> w_en_passant_flag != -1){
+            int square_idx = 24 + b -> w_en_passant_flag; 
+            bitboard square = 1ULL << square_idx;
+            if (no_prom_pawns & ROWS[3] & (square << 1)){
+                l -> m[l -> index] = create_move(square_idx + 1 , square_idx - 8, PAWN, NO_PROM);
+                (l -> index)++;
+            }
+            if (no_prom_pawns & ROWS[3] & (square >> 1)){
+                l -> m[l -> index] = create_move(square_idx - 1 , square_idx - 8, PAWN, NO_PROM);
+                (l -> index)++;
+            }
         }
-        if ((((square >> 7) & opp)  > 0 ) && (row - 1 >= 0) && (col + 1 < 8)){
-            l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square >> 7), PAWN, NO_PROM); 
-            (l -> index)++;
-        }
-        if (3 == row && (b -> w_en_passant_flag == col + 1 ) && (col + 1 < 8)){
-            l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square >> 7), PAWN, NO_PROM); 
-            (l -> index)++;
-        }
-        if (3 == row && ((b -> w_en_passant_flag == col - 1) && (col - 1 >= 0))){
-            l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square >> 9), PAWN, NO_PROM); 
-            (l -> index)++;
-        }
-    } 
+    }
 }
+
 
 void rook_all_moves(const board *b, list_move *l){
     int i = 0;
@@ -738,35 +846,6 @@ void knight_all_moves(const board *b, list_move *l){
         knight_moves(b, 1ULL << trailing_zeros, l);
         copy_mask = copy_mask & ~(1ULL << trailing_zeros);
     }       
-}
-
-void pawn_all_moves(const board *b, list_move *l){
-    int i = 5;
-    if (b -> turn == BLACK)
-        i += 6;
-    bitboard copy_mask = (b -> pieces)[i];
-    int trailing_zeros;
-    int index = l -> index;
-    while (copy_mask > 0){
-        trailing_zeros = __builtin_ctzll(copy_mask); 
-        pawn_moves(b, 1ULL << trailing_zeros, l);
-        copy_mask = copy_mask & ~(1ULL << trailing_zeros);
-    }
-
-    int j = 0;
-
-    for (int i = index; i < l -> index; i++){
-        if((get_m_bitboard(l -> m[i], 0) & ROWS[6] && b -> turn) > 0 || (get_m_bitboard(l -> m[i], 0)& ROWS[1] && (b -> turn ^1)) > 0){
-            l -> m[i] = modify_prom(l ->m[i], QUEEN);
-            l -> m[l -> index + j] = modify_prom(l ->m[i], ROOK);
-            l -> m[l -> index + j + 1] = modify_prom(l ->m[i], BISHOP);
-            l -> m[l -> index + j + 2] = modify_prom(l ->m[i], KNIGHT);
-            j += 3;
-            
-        }
-    }
-    
-    l -> index += j;
 }
 
 void queen_all_moves(const board *b, list_move *l){
