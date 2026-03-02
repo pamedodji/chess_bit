@@ -4,22 +4,14 @@
 #include <string.h>
 #include <time.h>
 #include <string.h>
-
+#include <immintrin.h>
 
 typedef uint64_t bitboard;
 
-extern bitboard east_table[64];
-extern bitboard west_table[64];
-extern bitboard south_table[64];
-extern bitboard north_table[64];
+
 extern bitboard knight_table[64];
-extern bitboard n_east_table[64];
-extern bitboard n_west_table[64];
-extern bitboard s_east_table[64];
-extern bitboard s_west_table[64];
 extern bitboard kings_table[64];
-extern bitboard rooks_table[64];
-extern bitboard bishops_table[64];
+
 
 
 enum {WHITE = 1, BLACK = 0};
@@ -219,6 +211,10 @@ static inline bitboard splitmix64(bitboard *state) {
     return z ^ (z >> 31);
 }
 
+static inline bitboard bzlo_u64(bitboard squares, uint32_t idx){
+    bitboard mask = (1ULL << idx) - 1;
+    return _andn_u64(mask, squares);
+}
 
 enum {
   A1, B1, C1, D1, E1, F1, G1, H1,
@@ -231,3 +227,14 @@ enum {
   A8, B8, C8, D8, E8, F8, G8, H8
 };
 
+typedef struct{
+    bitboard north, south, east, west;
+}rooksray;
+
+extern rooksray rrays[64];
+
+typedef struct{
+    bitboard n_east, n_west, s_east, s_west;
+}bishopray;
+
+extern bishopray brays[64];

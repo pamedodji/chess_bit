@@ -1,24 +1,14 @@
 #include "header.h"
 
-bitboard east_table[64];
-bitboard west_table[64];
-bitboard south_table[64];
-bitboard north_table[64];
-bitboard knight_table[64];
-bitboard n_east_table[64];
-bitboard n_west_table[64];
-bitboard s_east_table[64];
-bitboard s_west_table[64];
-bitboard kings_table[64];
 
+bitboard knight_table[64];
+bitboard kings_table[64];
+rooksray rrays[64];
+bishopray brays[64];
 
 void init(){
     init_zobrist_tables();
-    memset(east_table, 0, 64 * sizeof(bitboard));
-    memset(west_table, 0, 64 * sizeof(bitboard));
-    memset(south_table, 0, 64 * sizeof(bitboard));
-    memset(north_table, 0, 64 * sizeof(bitboard));
-
+    memset(rrays, 0, 64 * sizeof(rooksray));
     bitboard square;
     int count;
     for (int i = 0; i < 64; i++){
@@ -26,26 +16,32 @@ void init(){
         count = 1;
         int row = i/8;
         int col = i % 8;
+        rrays[i].east = 0;
+        rrays[i].west = 0;
+        rrays[i].north = 0;
+        rrays[i].south = 0;
+        
         while (count < 8 && ((square << count) & ROWS[row]) != 0 ){
-            east_table[i] |= square << count;
+            rrays[i].east |= square << count;
             count++;
         }
         count = 1;
         while (count < 8 && ((square >> count) & ROWS[row]) != 0 ){
-            west_table[i] |= square >> count;
+            rrays[i].west |= square >> count;
             count++;
         }
         count = 1;
         while (count < 8 && ((square << 8 * count) & COLUMNS[col]) != 0 ){
-            north_table[i] |= square << 8 * count;
+            rrays[i].north |= square << 8 * count;
             count++;
         }
         count = 1;
         while (count < 8 && ((square >> 8 * count) & COLUMNS[col]) != 0 ){
-            south_table[i] |= square >> 8 * count;
+            rrays[i].south |= square >> 8 * count;
             count++;
         }
     }
+
 
     memset(knight_table, 0, 64 * sizeof(bitboard));
     int row;
@@ -68,10 +64,7 @@ void init(){
             
         }
     }
-    memset(n_east_table, 0, 64 * sizeof(bitboard));
-    memset(n_west_table, 0, 64 * sizeof(bitboard));
-    memset(s_east_table, 0, 64 * sizeof(bitboard));
-    memset(s_west_table, 0, 64 * sizeof(bitboard));
+    memset(brays, 0, 64 * sizeof(bishopray));
     int horizontal;
     int vertical ;
     for (int i = 0; i < 64; i++){
@@ -82,7 +75,7 @@ void init(){
         horizontal = 1;
         vertical = 1;
         while ((row + vertical < 8) && (col + horizontal < 8)){
-            n_east_table[i] |= square << (8 * vertical + horizontal);
+            brays[i].n_east |= square << (8 * vertical + horizontal);
             horizontal++;
             vertical++;
             
@@ -91,7 +84,7 @@ void init(){
         horizontal = 1;
         vertical = 1;
         while ((row + vertical) < 8 && (col - horizontal >= 0)){
-            n_west_table[i] |= square << (8 * vertical - horizontal);
+            brays[i].n_west |= square << (8 * vertical - horizontal);
             horizontal++;
             vertical++;
             
@@ -100,7 +93,7 @@ void init(){
         horizontal = 1;
         vertical = 1;
         while ((row - vertical >= 0) && col + horizontal < 8){
-            s_east_table[i] |= square >> (8 * vertical - horizontal);
+            brays[i].s_east |= square >> (8 * vertical - horizontal);
             horizontal++;
             vertical++;
             
@@ -109,13 +102,15 @@ void init(){
         horizontal = 1;
         vertical = 1;
         while ((row - vertical >= 0) && (col - horizontal >= 0)){
-            s_west_table[i] |= square >> (8 * vertical + horizontal);
+            brays[i].s_west |= square >> (8 * vertical + horizontal);
             horizontal++;
             vertical++;
             
         } 
       
     }
+
+
     memset(kings_table, 0, 64 * sizeof(bitboard));
     for (int i = 0; i < 64; i++){
         row = i / 8;
@@ -150,13 +145,13 @@ int is_attacked_row(const board *b, bitboard square){
     bitboard Q_R_MASK = b -> pieces[j] | b -> pieces[3 + j];
     bitboard index;
     bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
-    bitboard blockers = occupied & east_table[__builtin_ctzll(square)];
+    bitboard blockers = occupied & rrays[__builtin_ctzll(square)].east;
     if (blockers){
         index = __builtin_ctzll(blockers);
         if ((1ULL << index) & Q_R_MASK)
             return 1;
     }
-    blockers = occupied & west_table[__builtin_ctzll(square)];
+    blockers = occupied & rrays[__builtin_ctzll(square)].west;
     if (blockers){
         index = 63 - __builtin_clzll(blockers);
         if ((1ULL << index) & Q_R_MASK)
@@ -172,13 +167,13 @@ int is_attacked_column(const board *b, bitboard square){
     bitboard Q_R_MASK = b -> pieces[j] | b -> pieces[3 + j];
     bitboard index;
     bitboard occupied =  b -> player_pieces[0] | b -> player_pieces[1];
-    bitboard blockers = occupied & south_table[__builtin_ctzll(square)];
+    bitboard blockers = occupied & rrays[__builtin_ctzll(square)].south;
     if (blockers){
         index = 63 -__builtin_clzll(blockers);
         if ((1ULL << index) & Q_R_MASK)
             return 1;
     }
-    blockers = occupied & north_table[__builtin_ctzll(square)];
+    blockers = occupied & rrays[__builtin_ctzll(square)].north;
     if (blockers){
         index = __builtin_ctzll(blockers);
         if ((1ULL << index) & Q_R_MASK)
@@ -193,25 +188,25 @@ int is_attacked_diagonal(const board *b, bitboard square){
     bitboard Q_B_MASK = b -> pieces[j] | b -> pieces[ 1 + j];
     bitboard index;
     bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
-    bitboard blockers = occupied & n_east_table[__builtin_ctzll(square)];
+    bitboard blockers = occupied & brays[__builtin_ctzll(square)].n_east;
     if (blockers){
         index = __builtin_ctzll(blockers);
         if ((1ULL << index) & Q_B_MASK)
             return 1;
     }
-    blockers = occupied & n_west_table[__builtin_ctzll(square)];
+    blockers = occupied & brays[__builtin_ctzll(square)].n_west;
     if (blockers){
         index = __builtin_ctzll(blockers);
         if ((1ULL << index) & Q_B_MASK)
             return 1;
     }
-    blockers = occupied & s_east_table[__builtin_ctzll(square)];
+    blockers = occupied & brays[__builtin_ctzll(square)].s_east;
     if (blockers){
         index = 63 -__builtin_clzll(blockers);
         if ((1ULL << index) & Q_B_MASK)
             return 1;
     }
-    blockers = occupied & s_west_table[__builtin_ctzll(square)];
+    blockers = occupied & brays[__builtin_ctzll(square)].s_west;
     if (blockers){
         index = 63 -__builtin_clzll(blockers);
         if ((1ULL << index) & Q_B_MASK)
@@ -243,581 +238,30 @@ int is_attacked(const board *b, bitboard square){
         is_attacked_row(b, square) || is_attacked_by_knight(b, square) || is_attacked_pawn(b, square) || is_attacked_king(b, square);
 }
 
-void make_move(board *b, move m, int rep, unmake_info *info){
-    bitboard src = get_m_bitboard(m, 0);
-    bitboard dst = get_m_bitboard(m, 1);
-    uint32_t promotion = get_m_int(m, 3);
-    //info for unmake function, info = NULL if you don't want to use unmake func
-    if (info){
-        info -> castles = b -> castles;
-        info -> w_en_passant_flag = b -> w_en_passant_flag;
-        info -> b_en_passant_flag = b -> b_en_passant_flag;
-        info -> fifty_moves = b -> fifty_moves;
-        info -> m = m;
-        info -> piece_dst = 7; //Set to 7 while we don't know if there's a piece at src (ROOKs to pawns are between 0 and 5 include)
-        info  -> flags_enP_prom = 0; 
-        if (rep)
-            info -> rep_idx = b -> rep -> idx_start_looking;
-        else
-            info -> rep_idx = 255;
-    }
-    b -> fifty_moves++;
-    bitboard occupied =  b -> player_pieces[0] | b -> player_pieces[1];
-    if (b -> turn)
-        b -> w_en_passant_flag = -1;
-    else
-        b -> b_en_passant_flag = -1;
-    uint32_t i = get_m_int(m, 2) + 6 * (b -> turn ^ 1);
-    int opp_piece = 0;
-    if (dst & occupied){
-        if (rep)
-            b -> rep -> idx_start_looking = b -> rep ->idx;
-        opp_piece = 6 * b -> turn;
-        while ((b -> pieces[opp_piece] & dst) == 0)
-            opp_piece++;
-            
-        if (info)
-            info -> piece_dst = opp_piece - 6 * b -> turn;
-    }
 
-    if (i == KING || i == PAWN ||i == KING + 6 || i == PAWN + 6){
-        if (i == PAWN || i == PAWN + 6){
-            if (rep)
-                b -> rep -> idx_start_looking = b -> rep ->idx;
-            if ((src & ROWS[(b -> turn ^ 1) * 5 + 1]) > 0 && dst & ROWS[(b -> turn ^ 1) * 1  + 3]){ // If we move from 2nd row to 4th or 7th to 5th (en_passant)
-                if (b -> turn)
-                    b -> w_en_passant_flag = get_column(src);
-                else
-                    b -> b_en_passant_flag = get_column(src);
-            }
-   
-            b -> pieces[PAWN + (b -> turn ^ 1) * 6] &= ~src;
-            b -> player_pieces[b -> turn] &= ~src;
-            b -> pieces[PAWN + (b -> turn ^ 1) * 6] |= dst;
-            b -> player_pieces[b -> turn] |= dst;
-            if (dst & occupied){
-                b -> player_pieces[b -> turn ^ 1] &= ~dst; 
-                b -> pieces[opp_piece] &= ~dst;
-            }
-            
-            if (b -> turn && ((dst & ((src << 9) | (src << 7))) > 0) && (dst & occupied) == 0){ //We're en passening with whites
-                if (info)
-                    info  -> flags_enP_prom |= 1; //info end here
-                b -> pieces[PAWN + 6] &= ~(dst >> 8);
-                b -> player_pieces[0] &= ~(dst >> 8);
-            } 
-            if (b -> turn == 0 && ((dst & ((src >> 9) | (src >> 7))) > 0) && (dst & occupied) == 0){ //We're en passening with black
-                if (info)
-                    info  -> flags_enP_prom |= 1; //info end here
-                b -> pieces[PAWN ] &= ~(dst << 8);
-                b -> player_pieces[1] &= ~(dst << 8);
-            } 
-            if (b -> turn && (src & ROWS[6]) > 0){ //white promotion part
-                b -> pieces[PAWN + (b -> turn ^ 1) * 6] &= ~dst; // We delete the pawn that we added 10 lines before
-                if (promotion == ROOK){
-                    b -> pieces[ROOK] |= dst;
-                    b -> player_pieces[1] |= dst;
-                      if (info)
-                        info -> flags_enP_prom |= 2;
-                }
-                else if (promotion == KNIGHT){
-                    b -> pieces[KNIGHT] |= dst;
-                    b -> player_pieces[1] |= dst;
-                      if (info)
-                        info -> flags_enP_prom |= 4;
-                }
-                else if (promotion == BISHOP){
-                    b -> pieces[BISHOP] |= dst;
-                    b -> player_pieces[1] |= dst;
-                    if (info)
-                        info -> flags_enP_prom |= 8;
-                }
-
-                else{
-                    b -> pieces[QUEEN] |= dst;
-                    b -> player_pieces[1] |= dst;
-                      if (info)
-                        info -> flags_enP_prom |= 16;
-                }
-            }
-            if (b -> turn == 0 && (src & ROWS[1]) > 0){ //black promotion part
-                b -> pieces[PAWN + (b -> turn ^ 1) * 6] &= ~dst; // We delete the pawn that we added 10 lines before
-                if (promotion == ROOK){
-                    b -> pieces[ROOK + 6] |= dst;
-                    b -> player_pieces[0] |= dst;
-                    if (info)
-                        info -> flags_enP_prom |= 2;
-                }
-                else if (promotion == KNIGHT){
-                    b -> pieces[KNIGHT + 6] |= dst;
-                    b -> player_pieces[0] |= dst;
-                    if (info)
-                        info -> flags_enP_prom |= 4;
-                }
-                else if (promotion == BISHOP){
-                    b -> pieces[BISHOP + 6] |= dst;
-                    b -> player_pieces[0] |= dst;
-                    if (info)
-                        info -> flags_enP_prom |= 8;
-                }
-                else{
-                    b -> pieces[QUEEN + 6] |= dst;
-                    b -> player_pieces[0] |= dst;
-                    if (info)
-                        info -> flags_enP_prom |= 16;
-                }
-            }
-        }
-        else{
-            b -> castles &= ~(3 + (b -> turn ^ 1)* 9);
-            b -> pieces[i] &= ~src;
-            b -> player_pieces[b -> turn] &= ~src;
-            b -> player_pieces[b -> turn] |= dst;
-            b -> pieces[i] |= dst;
-            if (dst & occupied){
-                b -> player_pieces[b -> turn ^ 1] &= ~dst; 
-                b -> pieces[opp_piece] &= ~dst;
-            }
-            if (dst == (src << 2)) {// If we're castling
-                b -> pieces[i - 4] &= ~(dst << 1);
-                b -> pieces[i - 4] |= src << 1;
-                b -> player_pieces[b -> turn] |= src << 1;
-                b -> player_pieces[b -> turn] &= ~(dst << 1);
-            }
-            if ((dst == (src >> 2))){
-                b -> pieces[i - 4] &= ~(dst >> 2);
-                b -> pieces[i - 4] |= dst << 1;
-                b -> player_pieces[b -> turn] |= dst << 1;
-                b -> player_pieces[b -> turn] &= ~(dst >> 2);
-            }
-        }
-
-    }
-    else{   
-        b -> pieces[i] &= ~src;
-        b -> player_pieces[b -> turn] &= ~src;
-        b -> pieces[i] |= dst;
-        b -> player_pieces[b -> turn] |= dst;
-        if (dst & occupied){
-            b -> player_pieces[b -> turn ^ 1] &= ~dst; 
-            b -> pieces[opp_piece] &= ~dst;
-        }
-
-        
-    }
-    if (i == ROOK){ // We delete rook castle right
-        if (src == 1ULL) //We can't long castle with whites
-            b -> castles &= ~2;
-        if (src == (1ULL << 7))
-            b -> castles &= ~1;
-    }
-    if (i == ROOK + 6){
-        if (src == (1ULL << 56)) //We can't long castle with blacks
-            b -> castles &= ~8;
-        if (src == (1ULL << 63))
-            b -> castles &= ~4;
-    }
-    if ((dst & occupied ) > 0 && opp_piece == ROOK){ // We delete a rook castle right
-        if (dst == 1ULL) //We can't long castle with whites
-            b -> castles &= ~2;
-        if (dst == (1ULL << 7))
-            b -> castles &= ~1;
-    }
-    if ((dst & occupied ) > 0 && opp_piece == ROOK + 6){
-        if (dst == (1ULL << 56)) //We can't long castle with blacks
-            b -> castles &= ~8;
-        if (dst == (1ULL << 63))
-            b -> castles &= ~4;
-    }
-    if (rep){
-        (b -> rep) -> rep_table[(b -> rep) -> idx] = zobrist_key(b);
-        if(b -> rep -> idx >= 149)
-            b -> rep -> idx = 0;
-        else
-            (b -> rep -> idx)++;
-    }
-    b -> turn ^= 1; 
-}  
 
 int is_check(const board *b){
     bitboard square = b -> pieces[KING + 6 * (b -> turn ^ 1)];
     return is_attacked(b,square);
 }
 
-void rook_moves(const board *b, bitboard square, list_move *l, uint32_t piece){
-    bitboard my_piece = b -> player_pieces[1];
-    bitboard opp_piece = b -> player_pieces[0];
-    if (b -> turn == BLACK){
-        my_piece = b -> player_pieces[0];
-        opp_piece = b -> player_pieces[1];
-    }
-    int row = get_row(square);
-    int column = get_column(square );
-    bitboard mask_row = ROWS[row];
-    bitboard mask_column = COLUMNS[column];
-
-    int i = 1;
-    while(((square << i) & mask_row) > 0){ //checking right rows 
-        if ((my_piece & square << i) > 0)
-            break;
-        l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square << i), piece, NO_PROM); 
-        (l -> index)++;
-        if ((opp_piece & square << i) > 0)
-            break;
-        i++;
-    }
-
-    i = 1;
-    while(((square >> i) & mask_row) > 0){ //checking left rows 
-        if ((my_piece & square >> i) > 0)
-            break;
-
-        l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square >> i), piece, NO_PROM); 
-        (l -> index)++;
-
-        if ((opp_piece & square >> i) > 0)
-            break;
-        i++;
-    }
-
-    i = 1;
-    while(((square << 8*i) & mask_column ) > 0){ //checking up 
-        if ((my_piece & square << 8* i) > 0)
-            break;
-        l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square << (8 * i)), piece, NO_PROM); 
-
-        (l -> index)++;
-        if ((opp_piece & square << 8 * i) > 0)
-            break;
-        i++;
-    }
-    
-    i = 1;
-    while(((square >> 8*i) & mask_column) > 0){ //checking  down
-        if ((my_piece & square >> 8* i) > 0)
-            break;
-        l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square >> (8 * i)), piece, NO_PROM); 
-        (l -> index)++;
-        if ((opp_piece & square >> 8 * i) > 0)
-            break;
-        i++;
-    }
-}
 
 
-void bishop_moves(const board *b, bitboard square, list_move *l, uint32_t piece){
-    bitboard my_piece = b -> player_pieces[1];
-    bitboard opp_piece = b -> player_pieces[0];
-    if (b -> turn == BLACK){
-        my_piece = b -> player_pieces[0];
-        opp_piece = b -> player_pieces[1];
-    }
-    
-    int row = get_row(square);
-    int column = get_column(square);
-
-    int i = 1;
-    int j = 1;
-   
-    while((square << (8*i + j)  > 0) && (row + i < 8 ) && (column + j < 8)){ //checking right_up diag
-        if ((my_piece & square << (8*i + j)) > 0)
-            break;
-        l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square << (8 * i + j)), piece, NO_PROM); 
-        (l -> index)++;
-        if ((opp_piece & square << (8 * i + j)) > 0)
-            break;
-        i++;
-        j++;
-
-    }
-    
-    i = 1;
-    j = 1;
-    while(((square >> (8*i + j)) > 0) && (row - i >= 0) && (column - j >= 0)){ //checking right_downs rows
-        if ((my_piece & square >> (8*i + j)) > 0)
-            break;
-        l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square >> (8 * i + j)), piece, NO_PROM); 
-        (l -> index)++;
-        
-        if ((opp_piece & square >> (8 * i + j)) > 0)
-            break;
-        i++;
-        j++;
-        
-    }
-    
-    i = 1;
-    j = 1;
-    while(((square << (8*i - j))  > 0) && (row + i < 8) && (column - j >= 0)){ //checking up 
-        if ((my_piece & square << (8*i - j)) > 0)
-            break;
- 
-        l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square << (8 * i - j)), piece, NO_PROM); 
-        (l -> index)++;
-      
-        if ((opp_piece & square << (8 * i - j)) > 0)
-            break;
-        i++;
-        j++;
-    }
-   
-    i = 1;
-    j = 1;
-    while((((square >> (8*i - j))) > 0) && (row - i >= 0) && (column + j < 8)){ //checking  down
-        if ((my_piece & square >> (8*i - j)) > 0)
-            break;
-
-        l -> m[l -> index] = create_move(__builtin_ctzll(square), __builtin_ctzll(square >> (8 * i - j)), piece, NO_PROM); 
-        (l -> index)++;
-        
-        if ((opp_piece & square >> (8 * i - j)) > 0)
-            break;
-        i++;
-        j++;
-    }
-    
-}
-
-void queen_moves(const board *b, bitboard square, list_move *l){
-    rook_moves(b, square, l, QUEEN);
-    bishop_moves(b, square, l, QUEEN);
-}
-
-void knight_moves(const board *b, bitboard square, list_move *l){
-    int square_idx = __builtin_ctzll(square);
-    bitboard all_moves = knight_table[square_idx] & ~(b -> player_pieces[b -> turn]);
-    int trailling_zeros;
-    while (all_moves){
-        trailling_zeros = __builtin_ctzll(all_moves);
-        l -> m[l -> index] = create_move(square_idx,trailling_zeros, KNIGHT, NO_PROM); 
-        (l -> index)++;
-        all_moves &= (all_moves -1);
-    }
-}
-
-void king_moves(const board *b, list_move *l){
-    bitboard square_idx = __builtin_ctzll(b -> pieces[KING + (b -> turn ^ 1) * 6]);
-    bitboard to_add = kings_table[square_idx] & ~b -> player_pieces[b -> turn];
-    int trailling_zeros;
-    while (to_add){
-        trailling_zeros = __builtin_ctzll(to_add);
-        l -> m[l -> index] = create_move(square_idx, trailling_zeros, KING, NO_PROM); 
-        (l -> index)++;
-        to_add &= (to_add - 1);
-    }
-    bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
-    if (b -> turn == WHITE && (b -> castles & 1)){ //white can castle
-        if ((~occupied & 32) && (~occupied & 64)){
-            l -> m[l -> index] = create_move(square_idx, 6, KING, NO_PROM); 
-            (l -> index)++;
-        }
-    }
-    if (b -> turn == WHITE && (b -> castles & 2)){ //white can long castle
-        if ((~occupied & 8) && (~occupied & 4) && (~occupied & 2)){
-            l -> m[l -> index] = create_move(square_idx, 2, KING, NO_PROM); 
-            (l -> index)++;
-        }
-    }
-    if (b -> turn == BLACK && (b -> castles & 4)){ //black can castle
-        if ((~occupied & (1ULL << 61)) && (~occupied & (1ULL << 62))){
-            l -> m[l -> index] = create_move(square_idx, 62, KING, NO_PROM); 
-            (l -> index)++;
-        }
-    }
-    if (b -> turn == BLACK && (b -> castles & 8)){ //black can long castle
-        if ((~occupied & (1ULL << 59)) && (~occupied & (1ULL << 58)) && (~occupied & (1ULL << 57))){
-            l -> m[l -> index] = create_move(square_idx, 58, KING, NO_PROM); 
-            (l -> index)++;
-        }
-    }
-
-}
 
 
-void pawn_all_moves(const board *b, list_move *l){
-    bitboard not_occupied = ~(b -> player_pieces[0] | b -> player_pieces[1]);
-    bitboard no_prom_pawns = (b -> pieces[PAWN + 6 * (b -> turn ^ 1)]) & ~ROWS[6 - 5 * (b -> turn ^ 1)]; //can't have pawns on last row
-    bitboard prom_pawns = (b -> pieces[PAWN + 6 *(b -> turn ^ 1)]) & ROWS[6 - 5 * (b -> turn ^ 1)];
-    bitboard opp = b -> player_pieces[b -> turn ^ 1];
-    bitboard all_moves = 0;
-    int trailling_zeros;
-
-    if (b -> turn == WHITE){
-        //forward
-        all_moves = ((no_prom_pawns) << 8) & not_occupied; 
-        bitboard double_forward = ((all_moves & ROWS[2]) << 8) & not_occupied;
-        while (all_moves){
-            trailling_zeros = pop_inplace(&all_moves);
-            l -> m[l -> index] = create_move(trailling_zeros - 8, trailling_zeros, PAWN, NO_PROM);
-            (l -> index)++;
-        }
-        //Double forward
-        while (double_forward){
-            trailling_zeros = pop_inplace(&double_forward);
-            l -> m[l -> index] = create_move(trailling_zeros - 16, trailling_zeros, PAWN, NO_PROM);
-            (l -> index)++;
-        }
-        //Captures 
-        all_moves = ((no_prom_pawns & ~COLUMNS[7]) << 9) & opp; //right
-        while (all_moves){
-            trailling_zeros = pop_inplace(&all_moves);
-            l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, NO_PROM);
-            (l -> index)++;
-        }
-        all_moves = ((no_prom_pawns & ~COLUMNS[0]) << 7) & opp; //left
-        while (all_moves){
-            trailling_zeros = pop_inplace(&all_moves);
-            l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, NO_PROM);
-            (l -> index)++;
-        }
-        //promotion
-        if (prom_pawns){ //rare so we can skip this instructions very often
-            all_moves = (prom_pawns << 8) & not_occupied;
-            while (all_moves){
-                trailling_zeros = pop_inplace(&all_moves);
-                l -> m[l -> index] = create_move(trailling_zeros - 8, trailling_zeros, PAWN, QUEEN);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros - 8, trailling_zeros, PAWN, ROOK);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros - 8, trailling_zeros, PAWN, BISHOP);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros - 8, trailling_zeros, PAWN, KNIGHT);
-                (l -> index)++;
-            }
-            all_moves = ((prom_pawns & ~COLUMNS[7]) << 9) & opp; //right captures
-            while (all_moves){
-                trailling_zeros = pop_inplace(&all_moves);
-                l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, QUEEN);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, ROOK);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, BISHOP);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, KNIGHT);
-                (l -> index)++;
-            }
-            all_moves = ((prom_pawns & ~COLUMNS[0]) << 7) & opp; //left captures
-            while (all_moves){
-                trailling_zeros = pop_inplace(&all_moves);
-                l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, QUEEN);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, ROOK);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, BISHOP);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, KNIGHT);
-                (l -> index)++;
-            }
-        }
-        //en_passant
-        if (b -> b_en_passant_flag != -1){
-            
-            int square_idx = 32 + b -> b_en_passant_flag; 
-            bitboard square = 1ULL << square_idx;
-            if (no_prom_pawns & ROWS[4] & (square << 1)){
-                l -> m[l -> index] = create_move(square_idx + 1 , square_idx + 8, PAWN, NO_PROM);
-                (l -> index)++;
-            }
-            if (no_prom_pawns & ROWS[4] & (square >> 1)){
-                l -> m[l -> index] = create_move(square_idx - 1 , square_idx + 8, PAWN, NO_PROM);
-                (l -> index)++;
-            }
-        }
-    }
-    else{
-        //forward
-        all_moves = (no_prom_pawns >> 8) & not_occupied; 
-        bitboard double_forward = ((all_moves & ROWS[5]) >> 8) & not_occupied;
-        while (all_moves){
-            trailling_zeros = pop_inplace(&all_moves);
-            l -> m[l -> index] = create_move(trailling_zeros + 8, trailling_zeros, PAWN, NO_PROM);
-            (l -> index)++;
-        }
-        //Double forward
-        while (double_forward){
-            trailling_zeros = pop_inplace(&double_forward);
-            l -> m[l -> index] = create_move(trailling_zeros + 16, trailling_zeros, PAWN, NO_PROM);
-            (l -> index)++;
-        }
-        //Captures 
-        all_moves = ((no_prom_pawns & ~COLUMNS[0]) >> 9) & opp; //right
-        while (all_moves){
-            trailling_zeros = pop_inplace(&all_moves);
-            l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, NO_PROM);
-            (l -> index)++;
-        }
-        all_moves = ((no_prom_pawns & ~COLUMNS[7]) >> 7) & opp; //left
-        while (all_moves){
-            trailling_zeros = pop_inplace(&all_moves);
-            l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, NO_PROM);
-            (l -> index)++;
-        }
-        //promotion
-        if (prom_pawns){ //rare so we can skip this instructions very often
-            all_moves = (prom_pawns >> 8) & not_occupied;
-            while (all_moves){
-                trailling_zeros = pop_inplace(&all_moves);
-                l -> m[l -> index] = create_move(trailling_zeros + 8, trailling_zeros, PAWN, QUEEN);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros + 8, trailling_zeros, PAWN, ROOK);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros + 8, trailling_zeros, PAWN, BISHOP);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros + 8, trailling_zeros, PAWN, KNIGHT);
-                (l -> index)++;
-            }
-            all_moves = ((prom_pawns & ~COLUMNS[0]) >> 9) & opp; //right captures
-            while (all_moves){
-                trailling_zeros = pop_inplace(&all_moves);
-                l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, QUEEN);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, ROOK);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, BISHOP);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, KNIGHT);
-                (l -> index)++;
-            }
-            all_moves = ((prom_pawns & ~COLUMNS[7]) >> 7) & opp; //left captures
-            while (all_moves){
-                trailling_zeros = pop_inplace(&all_moves);
-                l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, QUEEN);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, ROOK);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, BISHOP);
-                (l -> index)++;
-                l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, KNIGHT);
-                (l -> index)++;
-            }
-        }
-        //en_passant
-        if (b -> w_en_passant_flag != -1){
-            int square_idx = 24 + b -> w_en_passant_flag; 
-            bitboard square = 1ULL << square_idx;
-            if (no_prom_pawns & ROWS[3] & (square << 1)){
-                l -> m[l -> index] = create_move(square_idx + 1 , square_idx - 8, PAWN, NO_PROM);
-                (l -> index)++;
-            }
-            if (no_prom_pawns & ROWS[3] & (square >> 1)){
-                l -> m[l -> index] = create_move(square_idx - 1 , square_idx - 8, PAWN, NO_PROM);
-                (l -> index)++;
-            }
-        }
-    }
-}
 
 
 void rook_all_moves(const board *b, list_move *l){
+    bitboard square;
     int i = 0;
     if (b -> turn == BLACK)
         i += 6; 
     bitboard copy_mask = (b -> pieces)[i];
     int trailing_zeros;
     while (copy_mask > 0){
-        trailing_zeros = __builtin_ctzll(copy_mask); //This function returns the index of the lowest bit = 1
-        rook_moves(b, 1ULL << trailing_zeros, l, ROOK);
-        copy_mask = copy_mask & ~(1ULL << trailing_zeros);
+        square = copy_mask & -copy_mask;  
+        copy_mask ^= square;                     
+        rook_moves(b, square, l, ROOK);
     } 
 }
 
@@ -874,6 +318,7 @@ void pseudo_legal_moves(const board *b, list_move *l){
 }
 
 void legal_moves(board *b, list_move *l){
+    long start;
     pseudo_legal_moves(b, l);
     
     if (l -> size == 0)
@@ -949,70 +394,12 @@ int is_legal_move(const board *b, move m){
     return !is_check(&temp);
 }
 
-void unmake(board *b, unmake_info *info){
-    bitboard src = get_m_bitboard(info -> m, 0);
-    bitboard dst = get_m_bitboard(info -> m, 1);
-    uint32_t piece_src = get_m_int(info -> m, 2);
-    //Castles part
-    if ((b -> pieces[KING] & dst) > 0 && (src << 2) == dst ){ //White castle
-        b -> pieces[ROOK] |= (1ULL << 7);
-        b -> pieces[ROOK] &= ~(1ULL << 5);
-    }
-    else if ((b -> pieces[KING] & dst) > 0 && (src >> 2) == dst ){ //White long castle
-        b -> pieces[ROOK] |= (1ULL << 0);
-        b -> pieces[ROOK] &= ~(1ULL << 3);
-    }
-    else if ((b -> pieces[KING + 6] & dst) > 0 && (src << 2) == dst ){ //black castle
-        b -> pieces[ROOK + 6] |= (1ULL << 63);
-        b -> pieces[ROOK + 6] &= ~(1ULL << 61);
-    }
-    else if ((b -> pieces[KING + 6] & dst) > 0 && (src >> 2) == dst ){ //black long castle
-        b -> pieces[ROOK + 6] |= (1ULL << 56);
-        b -> pieces[ROOK + 6] &= ~(1ULL << 59);
-    }
-    //putting the original src piece back 
-    b -> pieces[ piece_src + 6 * b -> turn] |= src;
-    if (info -> flags_enP_prom <= 1) //No promotions happened
-        b -> pieces[piece_src + 6 * b -> turn] &= ~(dst);
-    else
-        b -> pieces[ __builtin_ctzll((info -> flags_enP_prom ) >> 1) + 6 * b -> turn] &= ~(dst); //if prom happened
-    
-    //if captures happened (en_passant doesn't verify this condition)
-    if (info -> piece_dst != 7)
-        b -> pieces[info -> piece_dst + 6 * (b -> turn == BLACK)] |= dst; 
-    if ((info -> flags_enP_prom & 1) == 1){  //en passant
-        if (b -> turn == WHITE)
-            b -> pieces[ piece_src] |= dst << 8;
-        else   
-            b -> pieces[ piece_src + 6] |= dst >> 8; 
-    }
-    b -> player_pieces[0] = 0;
-    b -> player_pieces[1] = 0;
-    for (int i = 0; i < 6; i++)
-        b -> player_pieces[1] |= b -> pieces[i];
-    for (int i = 6; i < 12; i++)
-        b -> player_pieces[0] |= b -> pieces[i];
- 
-    b -> castles = info -> castles;
-    b -> w_en_passant_flag = info -> w_en_passant_flag;
-    b -> b_en_passant_flag = info -> b_en_passant_flag;
-    b -> fifty_moves = info -> fifty_moves;
-    if (info -> rep_idx != 255){
-        if (b -> rep -> idx == 0)
-            b -> rep -> idx = 149;
-        else
-            (b -> rep -> idx)--;
-        b -> rep -> idx_start_looking = info -> rep_idx;
-    }
-    
-    b -> turn ^= 1;
-}
 
 
 int is_aligned(const bitboard king_square, const bitboard piece_square){
     int piece_index = __builtin_ctzll(piece_square);
-    return ((s_east_table[piece_index] | s_west_table[piece_index] | n_east_table[piece_index] | n_west_table[piece_index] |
-        east_table[piece_index] | west_table[piece_index] | north_table[piece_index] | south_table[piece_index]) & king_square) > 0;
+    return ((brays[piece_index].s_east | brays[piece_index].s_west | brays[piece_index].n_east | brays[piece_index].n_west |
+        rrays[piece_index].east | rrays[piece_index].west | rrays[piece_index].north | rrays[piece_index].south) & king_square) > 0;
     
 }
 
@@ -1027,7 +414,7 @@ bitboard get_pinned(const board *b){
     bitboard temp2;
     bitboard blockers;
     // First rows
-    if ((blockers = occupied & west_table[index])){
+    if ((blockers = occupied & rrays[index].west)){
         temp = 1ULL << (63 - __builtin_clzll(blockers));
         if (my_piece & temp){
             opp_piece = b -> pieces[ROOK + 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
@@ -1041,7 +428,7 @@ bitboard get_pinned(const board *b){
         
             
     }
-    if ((blockers = occupied & east_table[index])){
+    if ((blockers = occupied & rrays[index].east)){
         temp = 1ULL << __builtin_ctzll(blockers);
         if (my_piece & temp){
             opp_piece = b -> pieces[ROOK + 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
@@ -1056,7 +443,7 @@ bitboard get_pinned(const board *b){
             
     }
     //Seconde columns
-    if ((blockers = occupied & north_table[index])){
+    if ((blockers = occupied & rrays[index].north)){
         temp = 1ULL << __builtin_ctzll(blockers);
         if (my_piece & temp){
             opp_piece = b -> pieces[ROOK + 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
@@ -1069,7 +456,7 @@ bitboard get_pinned(const board *b){
 
         }
     }
-    if ((blockers = occupied & south_table[index])){
+    if ((blockers = occupied & rrays[index].south)){
         temp = 1ULL << (63 - __builtin_clzll(blockers));
         if (my_piece & temp){
             opp_piece = b -> pieces[ROOK + 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
@@ -1084,7 +471,7 @@ bitboard get_pinned(const board *b){
     }
     //Now diagonals
     //right up
-    if ((blockers = occupied & n_east_table[index])){
+    if ((blockers = occupied & brays[index].n_east)){
         temp = 1ULL <<  __builtin_ctzll(blockers);
         if (my_piece & temp){
             opp_piece = b -> pieces[BISHOP+ 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
@@ -1097,7 +484,7 @@ bitboard get_pinned(const board *b){
         }
     }
     //left up
-    if ((blockers = occupied & n_west_table[index])){
+    if ((blockers = occupied & brays[index].n_west)){
         temp = 1ULL <<  __builtin_ctzll(blockers);
         if (my_piece & temp){
             opp_piece = b -> pieces[BISHOP+ 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
@@ -1111,7 +498,7 @@ bitboard get_pinned(const board *b){
         }
     }
     //right down
-    if ((blockers = occupied & s_east_table[index])){
+    if ((blockers = occupied & brays[index].s_east)){
         temp = 1ULL << (63 - __builtin_clzll(blockers));
         if (my_piece & temp){
             opp_piece = b -> pieces[BISHOP+ 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
@@ -1124,7 +511,7 @@ bitboard get_pinned(const board *b){
         }
     }
     //left down
-    if ((blockers = occupied & s_west_table[index])){
+    if ((blockers = occupied & brays[index].s_west)){
         temp = 1ULL << (63 - __builtin_clzll(blockers));
         if (my_piece & temp){
             opp_piece = b -> pieces[BISHOP+ 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
