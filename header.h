@@ -7,7 +7,7 @@
 #include <immintrin.h>
 
 typedef uint64_t bitboard;
-
+typedef uint32_t u32;
 
 extern bitboard knight_table[64];
 extern bitboard kings_table[64];
@@ -113,11 +113,11 @@ int is_attacked(const board *b, bitboard square);
 int is_attacked_king(const board *b, bitboard square);
 int is_check(const board *b);
 void legal_moves(board *b, list_move *l);
-void rook_moves(const board *b, bitboard square, list_move *l, uint32_t piece);
-void bishop_moves(const board *b, bitboard square, list_move *l, uint32_t piece);
-void queen_moves(const board *b, bitboard square, list_move *l);
+void rook_moves(const board *b, u32 sq_idx, list_move *l, uint32_t piece);
+void bishop_moves(const board *b, u32 sq_idx, list_move *l, uint32_t piece);
+void queen_moves(const board *b, u32 sq_idx, list_move *l);
 void king_moves(const board *b, list_move *l);
-void knight_moves(const board *b, bitboard square, list_move *l);
+void knight_moves(const board *b, u32 sq_idx, list_move *l);
 void pawn_all_moves(const board *b, list_move *l);
 void queen_all_moves(const board *b, list_move *l);
 void pseudo_legal_moves(const board *b, list_move *l);

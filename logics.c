@@ -110,7 +110,6 @@ void init(){
       
     }
 
-
     memset(kings_table, 0, 64 * sizeof(bitboard));
     for (int i = 0; i < 64; i++){
         row = i / 8;
@@ -261,7 +260,7 @@ void rook_all_moves(const board *b, list_move *l){
     while (copy_mask > 0){
         square = copy_mask & -copy_mask;  
         copy_mask ^= square;                     
-        rook_moves(b, square, l, ROOK);
+        rook_moves(b, __builtin_ctzll(square), l, ROOK);
     } 
 }
 
@@ -274,8 +273,8 @@ void bishop_all_moves(const board *b, list_move *l){
     int trailing_zeros;
     while (copy_mask > 0){
         trailing_zeros = __builtin_ctzll(copy_mask); //This function returns the index of the lowest bit = 1
-        bishop_moves(b, 1ULL << trailing_zeros, l, BISHOP);
-        copy_mask = copy_mask & ~(1ULL << trailing_zeros);
+        bishop_moves(b, trailing_zeros, l, BISHOP);
+        copy_mask &= (copy_mask - 1);
     }     
 }
 
@@ -287,8 +286,8 @@ void knight_all_moves(const board *b, list_move *l){
     int trailing_zeros;
     while (copy_mask > 0){
         trailing_zeros = __builtin_ctzll(copy_mask); //This function returns the index of the lowest bit = 1
-        knight_moves(b, 1ULL << trailing_zeros, l);
-        copy_mask = copy_mask & ~(1ULL << trailing_zeros);
+        knight_moves(b, trailing_zeros, l);
+        copy_mask &= (copy_mask - 1);
     }       
 }
 
@@ -300,8 +299,8 @@ void queen_all_moves(const board *b, list_move *l){
     int trailing_zeros;
     while (copy_mask > 0){
         trailing_zeros = __builtin_ctzll(copy_mask); //This function returns the index of the lowest bit = 1
-        queen_moves(b, 1ULL << trailing_zeros, l);
-        copy_mask = copy_mask & ~(1ULL << trailing_zeros);
+        queen_moves(b, trailing_zeros, l);
+        copy_mask &= (copy_mask - 1);
     }     
 }
 
@@ -327,27 +326,33 @@ void legal_moves(board *b, list_move *l){
     unmake_info info;
     bitboard pinned = get_pinned(b);
     int is_check_value = is_check(b);
+    bitboard sq_src;
+    bitboard sq_dst;
+    u32 piece;
     for (int index = 0 ; index < l -> size; index++){
-        if ((get_m_bitboard(l -> m[index], 0) & pinned) == 0 && is_check_value == 0 && get_m_int(l -> m[index], 2) != KING && 
-            is_not_en_passant(b, get_m_bitboard(l -> m[index], 0), get_m_bitboard(l -> m[index], 1), get_m_int(l -> m[index], 2))){
+        sq_src = get_m_bitboard(l -> m[index], 0);
+        sq_dst = get_m_bitboard(l -> m[index], 1);
+        piece = get_m_int(l -> m[index], 2);
+        if ((sq_src & pinned) == 0 && is_check_value == 0 && piece != KING && 
+            is_not_en_passant(b, sq_src, sq_dst, piece)){
             l -> m[new_ind] = l -> m[index];
             new_ind++;
         }
         else{
-            if (b -> pieces[KING] == get_m_bitboard(l -> m[index], 0) ||  b -> pieces[KING + 6] == get_m_bitboard(l -> m[index], 0)){
-                if((get_m_bitboard(l -> m[index], 0) << 2) == get_m_bitboard(l -> m[index], 1) || 
-                    (get_m_bitboard(l -> m[index], 0) >> 2) == get_m_bitboard(l -> m[index], 1)){
+            if (b -> pieces[KING] == sq_src ||  b -> pieces[KING + 6] == sq_src){
+                if((sq_src << 2) == sq_dst || 
+                    (sq_src >> 2) == sq_dst){
                     if (is_check(b))
                         continue;
-                    if ((get_m_bitboard(l -> m[index], 0) << 2) == get_m_bitboard(l -> m[index], 1)){
-                        if (is_attacked(b, get_m_bitboard(l -> m[index], 0) << 1) || is_attacked(b, get_m_bitboard(l -> m[index], 0) << 2))
+                    if ((sq_src << 2) == sq_dst){
+                        if (is_attacked(b, sq_src << 1) || is_attacked(b, sq_src << 2))
                             continue;
                         l -> m[new_ind] = l -> m[index];
                         new_ind++;
                         continue;
                     }
                     else {
-                        if (is_attacked(b, get_m_bitboard(l -> m[index], 0) >> 1) || is_attacked(b, get_m_bitboard(l -> m[index], 0) >> 2))
+                        if (is_attacked(b, sq_src >> 1) || is_attacked(b, sq_src >> 2))
                             continue;
                         l -> m[new_ind] = l -> m[index];
                         new_ind++;

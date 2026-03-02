@@ -2,10 +2,9 @@
 
 
 
-void bishop_moves(const board *b, bitboard square, list_move *l, uint32_t piece){
+void bishop_moves(const board *b, u32 sq_idx, list_move *l, uint32_t piece){
     bitboard occupied = b -> player_pieces[BLACK] | b -> player_pieces[WHITE];
     bitboard my_piece = b -> player_pieces[b -> turn];
-    int sq_idx = __builtin_ctzll(square);
     bitboard n_east;
     bitboard s_east;
     bitboard n_west;
