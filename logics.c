@@ -324,19 +324,20 @@ void legal_moves(board *b, list_move *l){
     bitboard sq_src;
     bitboard sq_dst;
     u32 piece;
+    u32 flag;
     for (int index = 0 ; index < l -> size; index++){
         sq_src = get_m_bitboard(l -> m[index], 0);
         sq_dst = get_m_bitboard(l -> m[index], 1);
         piece = get_m_int(l -> m[index], 2);
+        flag = get_m_int(l -> m[index], 3);
         if ((sq_src & pinned) == 0 && is_check_value == 0 && piece != KING && 
-            is_not_en_passant(b, sq_src, sq_dst, piece)){
+            flag != EN_PASSANT){
             l -> m[new_ind] = l -> m[index];
             new_ind++;
         }
         else{
-            if (b -> pieces[KING] == sq_src ||  b -> pieces[KING + 6] == sq_src){
-                if((sq_src << 2) == sq_dst || 
-                    (sq_src >> 2) == sq_dst){
+            if (piece == KING){
+                if(flag >= CASTLE){
                     if (is_check(b))
                         continue;
                     if ((sq_src << 2) == sq_dst){

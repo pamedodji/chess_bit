@@ -57,15 +57,15 @@ typedef struct {
 }unmake_info;
 
 typedef struct{
-    int r;
-    int c;
+    i8 r;
+    i8 c;
 }knight_mov;
 
 
 typedef struct{
     move m[240];
-    int index;
-    int size;
+    u8 index;
+    u8 size;
 }list_move;
 
 static const knight_mov n_mov[8] = {{-2, -1}, {-2, 1}, {2, 1}, {2, -1}, {-1, -2}, {-1, 2}, {1, 2}, {1, -2}};
