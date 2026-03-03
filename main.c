@@ -12,7 +12,7 @@ int main(){
 
     
     perft_divide(&b, 6);
-    verify_logics(5);
+    
     long end = get_time_ms();
     print_board(&b);
 

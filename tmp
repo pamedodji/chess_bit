@@ -59,6 +59,67 @@ void rook_moves(const board *b, bitboard square, list_move *l, uint32_t piece){
 }
 
 
+void rook_moves(const board *b, u32 sq_idx, list_move *l, uint32_t piece){
+    bitboard my_piece = b -> player_pieces[1];
+    bitboard opp_piece = b -> player_pieces[0];
+    if (b -> turn == BLACK){
+        my_piece = b -> player_pieces[0];
+        opp_piece = b -> player_pieces[1];
+    }
+    bitboard square = 1ULL << sq_idx;
+    int row = get_row(square);
+    int column = get_column(square );
+    bitboard mask_row = ROWS[row];
+    bitboard mask_column = COLUMNS[column];
+
+    int i = 1;
+    while(((square << i) & mask_row) > 0){ //checking right rows 
+        if ((my_piece & square << i) > 0)
+            break;
+        l -> m[l -> index] = create_move(sq_idx, sq_idx + i, piece, NO_PROM); 
+        (l -> index)++;
+        if ((opp_piece & square << i) > 0)
+            break;
+        i++;
+    }
+
+    i = 1;
+    while(((square >> i) & mask_row) > 0){ //checking left rows 
+        if ((my_piece & square >> i) > 0)
+            break;
+
+        l -> m[l -> index] = create_move(sq_idx, sq_idx- i, piece, NO_PROM); 
+        (l -> index)++;
+
+        if ((opp_piece & square >> i) > 0)
+            break;
+        i++;
+    }
+
+    i = 1;
+    while(((square << 8*i) & mask_column ) > 0){ //checking up 
+        if ((my_piece & square << 8* i) > 0)
+            break;
+        l -> m[l -> index] = create_move(sq_idx, sq_idx + 8 * i, piece, NO_PROM); 
+
+        (l -> index)++;
+        if ((opp_piece & square << 8 * i) > 0)
+            break;
+        i++;
+    }
+    
+    i = 1;
+    while(((square >> 8*i) & mask_column) > 0){ //checking  down
+        if ((my_piece & square >> 8* i) > 0)
+            break;
+        l -> m[l -> index] = create_move(sq_idx, sq_idx - 8 * i, piece, NO_PROM); 
+        (l -> index)++;
+        if ((opp_piece & square >> 8 * i) > 0)
+            break;
+        i++;
+    }
+}
+
 void bishop_moves(const board *b, bitboard square, list_move *l, uint32_t piece){
     bitboard my_piece = b -> player_pieces[1];
     bitboard opp_piece = b -> player_pieces[0];
@@ -132,6 +193,79 @@ void bishop_moves(const board *b, bitboard square, list_move *l, uint32_t piece)
     
 }
 
+void bishop_moves(const board *b, u32 sq_idx, list_move *l, uint32_t piece){
+    bitboard my_piece = b -> player_pieces[1];
+    bitboard opp_piece = b -> player_pieces[0];
+    bitboard square = 1ULL << sq_idx;
+    if (b -> turn == BLACK){
+        my_piece = b -> player_pieces[0];
+        opp_piece = b -> player_pieces[1];
+    }
+    
+    int row = get_row(square);
+    int column = get_column(square);
+
+    int i = 1;
+    int j = 1;
+   
+    while((square << (8*i + j)  > 0) && (row + i < 8 ) && (column + j < 8)){ //checking right_up diag
+        if ((my_piece & square << (8*i + j)) > 0)
+            break;
+        l -> m[l -> index] = create_move(sq_idx, sq_idx + (8 * i + j), piece, NO_PROM); 
+        (l -> index)++;
+        if ((opp_piece & square << (8 * i + j)) > 0)
+            break;
+        i++;
+        j++;
+
+    }
+    
+    i = 1;
+    j = 1;
+    while(((square >> (8*i + j)) > 0) && (row - i >= 0) && (column - j >= 0)){ //checking right_downs rows
+        if ((my_piece & square >> (8*i + j)) > 0)
+            break;
+        l -> m[l -> index] = create_move(sq_idx, sq_idx - (8 * i + j), piece, NO_PROM); 
+        (l -> index)++;
+        
+        if ((opp_piece & square >> (8 * i + j)) > 0)
+            break;
+        i++;
+        j++;
+        
+    }
+    
+    i = 1;
+    j = 1;
+    while(((square << (8*i - j))  > 0) && (row + i < 8) && (column - j >= 0)){ //checking up 
+        if ((my_piece & square << (8*i - j)) > 0)
+            break;
+ 
+        l -> m[l -> index] = create_move(sq_idx, sq_idx + (8 * i - j), piece, NO_PROM); 
+        (l -> index)++;
+      
+        if ((opp_piece & square << (8 * i - j)) > 0)
+            break;
+        i++;
+        j++;
+    }
+   
+    i = 1;
+    j = 1;
+    while((((square >> (8*i - j))) > 0) && (row - i >= 0) && (column + j < 8)){ //checking  down
+        if ((my_piece & square >> (8*i - j)) > 0)
+            break;
+
+        l -> m[l -> index] = create_move(sq_idx,sq_idx - (8 * i - j)), piece, NO_PROM); 
+        (l -> index)++;
+        
+        if ((opp_piece & square >> (8 * i - j)) > 0)
+            break;
+        i++;
+        j++;
+    }
+    
+}
 
 void make_move(board *b, move m, int rep, unmake_info *info){
     bitboard src = get_m_bitboard(m, 0);

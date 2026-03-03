@@ -139,8 +139,8 @@ void init(){
 
 
 int is_attacked_row(const board *b, bitboard square){
-    int j = ROOK + 6 * b -> turn;
-    bitboard Q_R_MASK = b -> pieces[j] | b -> pieces[3 + j];
+    int piece = ROOK + 6 * b -> turn;
+    bitboard Q_R_MASK = b -> pieces[piece] | b -> pieces[3 + piece];
     bitboard index;
     bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
     u32 sq_idx = __builtin_ctzll(square);
@@ -161,8 +161,8 @@ int is_attacked_row(const board *b, bitboard square){
 
 
 int is_attacked_column(const board *b, bitboard square){
-    int j = ROOK + 6 * b -> turn;
-    bitboard Q_R_MASK = b -> pieces[j] | b -> pieces[3 + j];
+    int piece = ROOK + 6 * b -> turn;
+    bitboard Q_R_MASK = b -> pieces[piece] | b -> pieces[3 + piece];
     bitboard index;
     bitboard occupied =  b -> player_pieces[0] | b -> player_pieces[1];
     u32 sq_idx = __builtin_ctzll(square);
@@ -183,8 +183,8 @@ int is_attacked_column(const board *b, bitboard square){
 
 
 int is_attacked_diagonal(const board *b, bitboard square){
-    int j = BISHOP + 6 * b -> turn;
-    bitboard Q_B_MASK = b -> pieces[j] | b -> pieces[ 1 + j];
+    int piece = BISHOP + 6 * b -> turn;
+    bitboard Q_B_MASK = b -> pieces[piece] | b -> pieces[ 1 + piece];
     bitboard index;
     bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
     u32 sq_idx = __builtin_ctzll(square);
@@ -234,8 +234,8 @@ int is_attacked_king(const board *b, bitboard square){
 }
 
 int is_attacked(const board *b, bitboard square){
-    return is_attacked_column(b, square) || is_attacked_diagonal(b, square) || 
-        is_attacked_row(b, square) || is_attacked_by_knight(b, square) || is_attacked_pawn(b, square) || is_attacked_king(b, square);
+    return is_attacked_column(b, square) || is_attacked_row(b, square) ||is_attacked_diagonal(b, square) || 
+         is_attacked_by_knight(b, square) || is_attacked_pawn(b, square) || is_attacked_king(b, square);
 }
 
 

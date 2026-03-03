@@ -8,6 +8,9 @@
 
 typedef uint64_t bitboard;
 typedef uint32_t u32;
+typedef uint64_t u64;
+typedef uint8_t u8;
+typedef int8_t i8;
 
 extern bitboard knight_table[64];
 extern bitboard kings_table[64];
@@ -15,17 +18,16 @@ extern bitboard kings_table[64];
 
 
 enum {WHITE = 1, BLACK = 0};
-enum {ROOK, KNIGHT, BISHOP, QUEEN, KING, PAWN, NO_PROM};
+enum {ROOK, KNIGHT, BISHOP, QUEEN, KING, PAWN, NO_PROM, CAPTURE, EN_PASSANT, CASTLE};
 
+static const u64 MASK_BOARD = 0xFFFFFFFFFFFFFFFFULL;
 
-static const uint64_t MASK_BOARD = 0xFFFFFFFFFFFFFFFFULL;
-
-static const uint64_t ROWS[8] = {0xFFULL, 0xFFULL << 8,0xFFULL << 16, 0xFFULL << 24, 0xFFULL << 32, 0xFFULL << 40, 0xFFULL << 48, 0xFFULL << 56};
-static const uint64_t COLUMNS[8] = {0x0101010101010101ULL, 0x0101010101010101ULL << 1, 0x0101010101010101ULL << 2, 0x0101010101010101ULL << 3,
+static const u64 ROWS[8] = {0xFFULL, 0xFFULL << 8,0xFFULL << 16, 0xFFULL << 24, 0xFFULL << 32, 0xFFULL << 40, 0xFFULL << 48, 0xFFULL << 56};
+static const u64 COLUMNS[8] = {0x0101010101010101ULL, 0x0101010101010101ULL << 1, 0x0101010101010101ULL << 2, 0x0101010101010101ULL << 3,
      0x0101010101010101ULL << 4, 0x0101010101010101ULL << 5, 0x0101010101010101ULL << 6, 0x0101010101010101ULL << 7};
 
 
-typedef uint32_t move;
+typedef u32 move;
 
 typedef struct{
     int idx;
@@ -36,23 +38,23 @@ typedef struct{
 typedef struct{
     bitboard pieces[12]; //FIRST 6 WHITE : 0 ROOK; 1 KNIGHT; 2 BISHOP ; 3 QUEEN; 4 KING; 5 PAWN
     bitboard player_pieces[2];
-    uint8_t turn;
-    uint8_t castles; //1 w_can_castle; 2 w_can_long; //3 b_can_castle; 4 b_can_long 
-    int8_t w_en_passant_flag;
-    int8_t b_en_passant_flag;
-    uint8_t fifty_moves;
+    u8 turn;
+    u8 castles; //1 w_can_castle; 2 w_can_long; //3 b_can_castle; 4 b_can_long 
+    i8 w_en_passant_flag;
+    i8 b_en_passant_flag;
+    u8 fifty_moves;
     rep_struct *rep;
 }board;
 
 typedef struct {
-    uint8_t castles; //1 w_can_castle; 2 w_can_long; //3 b_can_castle; 4 b_can_long 
-    int8_t w_en_passant_flag;
-    int8_t b_en_passant_flag;
-    uint8_t fifty_moves;
+    u8 castles; //1 w_can_castle; 2 w_can_long; //3 b_can_castle; 4 b_can_long 
+    i8 w_en_passant_flag;
+    i8 b_en_passant_flag;
+    u8 fifty_moves;
     move m;
-    uint8_t piece_dst;
-    uint8_t flags_enP_prom; //1 if en_passant, 2 for rooks promotion, 4 knight, 8 bishop, 16 queen
-    uint8_t rep_idx;
+    u8 piece_dst;
+    u8 flags_enP_prom; //1 if en_passant, 2 for rooks promotion, 4 knight, 8 bishop, 16 queen
+    u8 rep_idx;
 }unmake_info;
 
 typedef struct{
@@ -225,6 +227,7 @@ static inline void delete_piece(board *b, u32 turn, u32 piece, bitboard square){
     b -> player_pieces[turn] &= ~square;
     b -> pieces[piece + 6 * (turn ^ 1)] &= ~square;
 }
+
 
 enum {
   A1, B1, C1, D1, E1, F1, G1, H1,
