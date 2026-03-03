@@ -18,7 +18,7 @@ extern bitboard kings_table[64];
 
 
 enum {WHITE = 1, BLACK = 0};
-enum {ROOK, KNIGHT, BISHOP, QUEEN, KING, PAWN, NO_PROM, CAPTURE, EN_PASSANT, CASTLE};
+enum {ROOK, KNIGHT, BISHOP, QUEEN, KING, PAWN, NO_PROM, EN_PASSANT, CASTLE, LONG_CASTLE};
 
 static const u64 MASK_BOARD = 0xFFFFFFFFFFFFFFFFULL;
 
@@ -53,7 +53,6 @@ typedef struct {
     u8 fifty_moves;
     move m;
     u8 piece_dst;
-    u8 flags_enP_prom; //1 if en_passant, 2 for rooks promotion, 4 knight, 8 bishop, 16 queen
     u8 rep_idx;
 }unmake_info;
 
@@ -182,11 +181,11 @@ static const uint32_t MASK_MOVE[4] = {
     0xFF000000u  //prom
 };
 
-static inline uint32_t create_move(uint32_t src, uint32_t dst, uint32_t piece, uint32_t prom){
+static inline uint32_t create_move(uint32_t src, uint32_t dst, uint32_t piece, uint32_t flags){
     uint32_t m = src;
     m |= dst << 8;
     m |= piece << 16;
-    m |= prom << 24;
+    m |= flags << 24;
     return m;
 }
 
@@ -228,6 +227,38 @@ static inline void delete_piece(board *b, u32 turn, u32 piece, bitboard square){
     b -> pieces[piece + 6 * (turn ^ 1)] &= ~square;
 }
 
+static inline void make_move_castle(board *b, const move m, const u32 flag, const u64 src, const u64 dst){
+    
+        b -> castles &= ~(3 + (b -> turn ^ 1)* 9);
+
+        delete_piece(b, b -> turn, KING, src);
+        add_piece(b, b -> turn, KING, dst);
+        if (flag == CASTLE) {// If we're castling
+            delete_piece(b, b -> turn, ROOK, dst << 1);
+            add_piece(b, b -> turn, ROOK, src << 1);
+        }
+        else{ //LONG_CASTLE
+            delete_piece(b, b -> turn , ROOK, dst >> 2);
+            add_piece(b, b -> turn, ROOK, dst << 1);
+        }
+}
+
+static inline void make_move_en_passant(board *b, const move m, unmake_info *info, u64 src, u64 dst){
+    delete_piece(b, b -> turn, PAWN, src);
+    add_piece(b, b -> turn, PAWN, dst);
+    if (b -> turn == WHITE) //We're en passening with whites
+        delete_piece(b, BLACK, PAWN, dst >> 8);
+    
+    else    //We're en passening with black
+        delete_piece(b, WHITE, PAWN, dst << 8);
+}
+
+static inline void make_move_promotion(board *b, const move m, unmake_info *info, u32 flag, u64 src, u64 dst, u64 opp_piece){
+    delete_piece(b, b -> turn, PAWN, src);
+    add_piece(b, b -> turn, flag, dst);
+    if (opp_piece != 7)
+        delete_piece(b, b -> turn ^ 1, opp_piece, dst);
+}
 
 enum {
   A1, B1, C1, D1, E1, F1, G1, H1,

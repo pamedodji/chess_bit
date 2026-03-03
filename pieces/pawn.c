@@ -81,11 +81,11 @@ void pawn_all_moves(const board *b, list_move *l){
             int square_idx = 32 + b -> b_en_passant_flag; 
             bitboard square = 1ULL << square_idx;
             if (no_prom_pawns & ROWS[4] & (square << 1)){
-                l -> m[l -> index] = create_move(square_idx + 1 , square_idx + 8, PAWN, NO_PROM);
+                l -> m[l -> index] = create_move(square_idx + 1 , square_idx + 8, PAWN, EN_PASSANT);
                 (l -> index)++;
             }
             if (no_prom_pawns & ROWS[4] & (square >> 1)){
-                l -> m[l -> index] = create_move(square_idx - 1 , square_idx + 8, PAWN, NO_PROM);
+                l -> m[l -> index] = create_move(square_idx - 1 , square_idx + 8, PAWN, EN_PASSANT);
                 (l -> index)++;
             }
         }
@@ -162,11 +162,11 @@ void pawn_all_moves(const board *b, list_move *l){
             int square_idx = 24 + b -> w_en_passant_flag; 
             bitboard square = 1ULL << square_idx;
             if (no_prom_pawns & ROWS[3] & (square << 1)){
-                l -> m[l -> index] = create_move(square_idx + 1 , square_idx - 8, PAWN, NO_PROM);
+                l -> m[l -> index] = create_move(square_idx + 1 , square_idx - 8, PAWN, EN_PASSANT);
                 (l -> index)++;
             }
             if (no_prom_pawns & ROWS[3] & (square >> 1)){
-                l -> m[l -> index] = create_move(square_idx - 1 , square_idx - 8, PAWN, NO_PROM);
+                l -> m[l -> index] = create_move(square_idx - 1 , square_idx - 8, PAWN, EN_PASSANT);
                 (l -> index)++;
             }
         }

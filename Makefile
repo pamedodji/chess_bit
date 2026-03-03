@@ -22,7 +22,7 @@ header_only : main_header_only.c impl.c
 	gcc $(CFLAGS_PERF)  main_header_only.c impl.c -o ho
 
 debug : $(FILES)
-	gcc -g -O0 -Wall -Wextra $(FILES) -o $(EXEC)
+	gcc -g -O0 -Wall -Wextra -$(FILES) -o $(EXEC)
 
 clean:
 	rm *.o pieces/*.o moves/*.o
