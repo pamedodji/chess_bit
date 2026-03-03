@@ -1,6 +1,5 @@
 #include "header.h"
 
-
 bitboard knight_table[64];
 bitboard kings_table[64];
 rooksray rrays[64];
@@ -144,13 +143,14 @@ int is_attacked_row(const board *b, bitboard square){
     bitboard Q_R_MASK = b -> pieces[j] | b -> pieces[3 + j];
     bitboard index;
     bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
-    bitboard blockers = occupied & rrays[__builtin_ctzll(square)].east;
+    u32 sq_idx = __builtin_ctzll(square);
+    bitboard blockers = occupied & rrays[sq_idx].east;
     if (blockers){
         index = __builtin_ctzll(blockers);
         if ((1ULL << index) & Q_R_MASK)
             return 1;
     }
-    blockers = occupied & rrays[__builtin_ctzll(square)].west;
+    blockers = occupied & rrays[sq_idx].west;
     if (blockers){
         index = 63 - __builtin_clzll(blockers);
         if ((1ULL << index) & Q_R_MASK)
@@ -161,18 +161,18 @@ int is_attacked_row(const board *b, bitboard square){
 
 
 int is_attacked_column(const board *b, bitboard square){
-
     int j = ROOK + 6 * b -> turn;
     bitboard Q_R_MASK = b -> pieces[j] | b -> pieces[3 + j];
     bitboard index;
     bitboard occupied =  b -> player_pieces[0] | b -> player_pieces[1];
-    bitboard blockers = occupied & rrays[__builtin_ctzll(square)].south;
+    u32 sq_idx = __builtin_ctzll(square);
+    bitboard blockers = occupied & rrays[sq_idx].south;
     if (blockers){
         index = 63 -__builtin_clzll(blockers);
         if ((1ULL << index) & Q_R_MASK)
             return 1;
     }
-    blockers = occupied & rrays[__builtin_ctzll(square)].north;
+    blockers = occupied & rrays[sq_idx].north;
     if (blockers){
         index = __builtin_ctzll(blockers);
         if ((1ULL << index) & Q_R_MASK)
@@ -187,25 +187,26 @@ int is_attacked_diagonal(const board *b, bitboard square){
     bitboard Q_B_MASK = b -> pieces[j] | b -> pieces[ 1 + j];
     bitboard index;
     bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
-    bitboard blockers = occupied & brays[__builtin_ctzll(square)].n_east;
+    u32 sq_idx = __builtin_ctzll(square);
+    bitboard blockers = occupied & brays[sq_idx].n_east;
     if (blockers){
         index = __builtin_ctzll(blockers);
         if ((1ULL << index) & Q_B_MASK)
             return 1;
     }
-    blockers = occupied & brays[__builtin_ctzll(square)].n_west;
+    blockers = occupied & brays[sq_idx].n_west;
     if (blockers){
         index = __builtin_ctzll(blockers);
         if ((1ULL << index) & Q_B_MASK)
             return 1;
     }
-    blockers = occupied & brays[__builtin_ctzll(square)].s_east;
+    blockers = occupied & brays[sq_idx].s_east;
     if (blockers){
         index = 63 -__builtin_clzll(blockers);
         if ((1ULL << index) & Q_B_MASK)
             return 1;
     }
-    blockers = occupied & brays[__builtin_ctzll(square)].s_west;
+    blockers = occupied & brays[sq_idx].s_west;
     if (blockers){
         index = 63 -__builtin_clzll(blockers);
         if ((1ULL << index) & Q_B_MASK)
@@ -243,12 +244,6 @@ int is_check(const board *b){
     bitboard square = b -> pieces[KING + 6 * (b -> turn ^ 1)];
     return is_attacked(b,square);
 }
-
-
-
-
-
-
 
 void rook_all_moves(const board *b, list_move *l){
     bitboard square;

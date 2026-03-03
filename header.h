@@ -197,7 +197,7 @@ static inline bitboard get_m_bitboard(move m, int idx){
     return 1ULL << sq;
 }
 
-static inline uint32_t modify_prom(move m, uint32_t prom){
+static inline uint32_t modify_prom(move m, u32 prom){
     move new_m = m;
     new_m &= ~MASK_MOVE[3];
     new_m |= prom << 24;
@@ -211,9 +211,19 @@ static inline bitboard splitmix64(bitboard *state) {
     return z ^ (z >> 31);
 }
 
-static inline bitboard bzlo_u64(bitboard squares, uint32_t idx){
+static inline bitboard bzlo_u64(bitboard squares, u32 idx){
     bitboard mask = (1ULL << idx) - 1;
     return _andn_u64(mask, squares);
+}
+
+static inline void add_piece(board *b, u32 turn, u32 piece, bitboard square){
+    b -> player_pieces[turn] |= square;
+    b -> pieces[piece + 6 * (turn ^ 1)] |= square;
+}
+
+static inline void delete_piece(board *b, u32 turn, u32 piece, bitboard square){
+    b -> player_pieces[turn] &= ~square;
+    b -> pieces[piece + 6 * (turn ^ 1)] &= ~square;
 }
 
 enum {
