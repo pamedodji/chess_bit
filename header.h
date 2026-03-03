@@ -36,7 +36,7 @@ typedef struct{
 }rep_struct;
 
 typedef struct{
-    bitboard pieces[12]; //FIRST 6 WHITE : 0 ROOK; 1 KNIGHT; 2 BISHOP ; 3 QUEEN; 4 KING; 5 PAWN
+    bitboard pieces[12]; //FIRST 6 BLACK : 0 ROOK; 1 KNIGHT; 2 BISHOP ; 3 QUEEN; 4 KING; 5 PAWN
     bitboard player_pieces[2];
     u8 turn;
     u8 castles; //1 w_can_castle; 2 w_can_long; //3 b_can_castle; 4 b_can_long 
@@ -219,12 +219,12 @@ static inline bitboard bzlo_u64(bitboard squares, u32 idx){
 
 static inline void add_piece(board *b, u32 turn, u32 piece, bitboard square){
     b -> player_pieces[turn] |= square;
-    b -> pieces[piece + 6 * (turn ^ 1)] |= square;
+    b -> pieces[piece + 6 * (turn )] |= square;
 }
 
 static inline void delete_piece(board *b, u32 turn, u32 piece, bitboard square){
     b -> player_pieces[turn] &= ~square;
-    b -> pieces[piece + 6 * (turn ^ 1)] &= ~square;
+    b -> pieces[piece + 6 * (turn)] &= ~square;
 }
 
 static inline void make_move_castle(board *b, const move m, const u32 flag, const u64 src, const u64 dst){

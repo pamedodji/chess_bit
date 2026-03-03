@@ -2,15 +2,15 @@
 
 void pawn_all_moves(const board *b, list_move *l){
     bitboard not_occupied = ~(b -> player_pieces[0] | b -> player_pieces[1]);
-    bitboard no_prom_pawns = (b -> pieces[PAWN + 6 * (b -> turn ^ 1)]) & ~ROWS[6 - 5 * (b -> turn ^ 1)]; //can't have pawns on last row
-    bitboard prom_pawns = (b -> pieces[PAWN + 6 *(b -> turn ^ 1)]) & ROWS[6 - 5 * (b -> turn ^ 1)];
+    bitboard no_prom_pawns = (b -> pieces[PAWN + 6 * b -> turn]) & ~ROWS[6 - 5 * (b -> turn ^ 1)]; //can't have pawns on last row
+    bitboard prom_pawns = (b -> pieces[PAWN + 6 *b -> turn]) & ROWS[6 - 5 * (b -> turn ^ 1)];
     bitboard opp = b -> player_pieces[b -> turn ^ 1];
     bitboard all_moves = 0;
     int trailling_zeros;
 
     if (b -> turn == WHITE){
         //forward
-        all_moves = ((no_prom_pawns) << 8) & not_occupied; 
+        all_moves = (no_prom_pawns << 8) & not_occupied; 
         bitboard double_forward = ((all_moves & ROWS[2]) << 8) & not_occupied;
         while (all_moves){
             trailling_zeros = pop_inplace(&all_moves);

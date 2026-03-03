@@ -139,10 +139,10 @@ void init(){
 
 
 int is_attacked_row(const board *b, bitboard square){
-    int piece = ROOK + 6 * b -> turn;
+    int piece = ROOK + 6 * (b -> turn ^ 1);
     bitboard Q_R_MASK = b -> pieces[piece] | b -> pieces[3 + piece];
     bitboard index;
-    bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
+    bitboard occupied = b -> player_pieces[BLACK] | b -> player_pieces[WHITE];
     u32 sq_idx = __builtin_ctzll(square);
     bitboard blockers = occupied & rrays[sq_idx].east;
     if (blockers){
@@ -161,7 +161,7 @@ int is_attacked_row(const board *b, bitboard square){
 
 
 int is_attacked_column(const board *b, bitboard square){
-    int piece = ROOK + 6 * b -> turn;
+    int piece = ROOK + 6 * (b -> turn ^ 1);
     bitboard Q_R_MASK = b -> pieces[piece] | b -> pieces[3 + piece];
     bitboard index;
     bitboard occupied =  b -> player_pieces[0] | b -> player_pieces[1];
@@ -183,7 +183,7 @@ int is_attacked_column(const board *b, bitboard square){
 
 
 int is_attacked_diagonal(const board *b, bitboard square){
-    int piece = BISHOP + 6 * b -> turn;
+    int piece = BISHOP + 6 * (b -> turn ^ 1);
     bitboard Q_B_MASK = b -> pieces[piece] | b -> pieces[ 1 + piece];
     bitboard index;
     bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
@@ -216,7 +216,7 @@ int is_attacked_diagonal(const board *b, bitboard square){
 }
 
 int is_attacked_by_knight(const board *b, bitboard square){
-    bitboard opp = b -> pieces[KNIGHT + 6 * b -> turn];
+    bitboard opp = b -> pieces[KNIGHT + 6 * (b -> turn ^ 1)];
     return (opp & knight_table[__builtin_ctzll(square)]) > 0;
 }
 
@@ -224,12 +224,12 @@ int is_attacked_pawn(const board *b, bitboard square){
     int row = get_row(square);
     int column = get_column(square);
     if (b -> turn == WHITE)
-        return ((on_board(row + 1 ,column + 1) &&  (((square << 9) & b -> pieces[PAWN + 6]) > 0))) || ((on_board(row +1 ,column - 1) &&  (((square << 7) & b -> pieces[PAWN + 6]) > 0)));
-    return ((on_board(row - 1 ,column + 1) &&  (((square >> 7) & b -> pieces[PAWN]) > 0))) || ((on_board(row - 1 ,column - 1) &&  (((square >> 9) & b -> pieces[PAWN]) > 0)));
+        return ((on_board(row + 1 ,column + 1) &&  (((square << 9) & b -> pieces[PAWN]) > 0))) || ((on_board(row +1 ,column - 1) &&  (((square << 7) & b -> pieces[PAWN]) > 0)));
+    return ((on_board(row - 1 ,column + 1) &&  (((square >> 7) & b -> pieces[PAWN + 6]) > 0))) || ((on_board(row - 1 ,column - 1) &&  (((square >> 9) & b -> pieces[PAWN + 6]) > 0)));
 }     
 
 int is_attacked_king(const board *b, bitboard square){
-    bitboard opp_king = b -> pieces[KING + 6 * b -> turn];
+    bitboard opp_king = b -> pieces[KING + 6 * (b -> turn ^ 1)];
     return (opp_king & kings_table[__builtin_ctzll(square)]) > 0;
 }
 
@@ -241,14 +241,14 @@ int is_attacked(const board *b, bitboard square){
 
 
 int is_check(const board *b){
-    bitboard square = b -> pieces[KING + 6 * (b -> turn ^ 1)];
+    bitboard square = b -> pieces[KING + 6 * b -> turn];
     return is_attacked(b,square);
 }
 
 void rook_all_moves(const board *b, list_move *l){
     bitboard square;
     int i = 0;
-    if (b -> turn == BLACK)
+    if (b -> turn == WHITE)
         i += 6; 
     bitboard copy_mask = (b -> pieces)[i];
     int trailing_zeros;
@@ -262,7 +262,7 @@ void rook_all_moves(const board *b, list_move *l){
 
 void bishop_all_moves(const board *b, list_move *l){
     int i = 2;
-    if (b -> turn == BLACK)
+    if (b -> turn == WHITE)
         i += 6;
     bitboard copy_mask = (b -> pieces)[i];
     int trailing_zeros;
@@ -275,7 +275,7 @@ void bishop_all_moves(const board *b, list_move *l){
 
 void knight_all_moves(const board *b, list_move *l){
     int i = 1;
-    if (b -> turn == BLACK)
+    if (b -> turn == WHITE)
         i += 6;
     bitboard copy_mask = (b -> pieces)[i];
     int trailing_zeros;
@@ -288,7 +288,7 @@ void knight_all_moves(const board *b, list_move *l){
 
 void queen_all_moves(const board *b, list_move *l){
     int i = 3;
-    if (b -> turn == BLACK)
+    if (b -> turn == WHITE)
         i += 6;
     bitboard copy_mask = (b -> pieces)[i];
     int trailing_zeros;
@@ -380,12 +380,12 @@ int is_legal_move(const board *b, move m){
         if (is_check(b))
             return 0;
         if ((src << 2) == dst1){
-            if (is_attacked(b, (b -> pieces[KING + 6 * (b -> turn ^ 1)]) << 1) || is_attacked(b, (b -> pieces[KING + 6 * (b -> turn ^ 1)]) << 2))
+            if (is_attacked(b, (b -> pieces[KING + 6 * b -> turn]) << 1) || is_attacked(b, (b -> pieces[KING + 6 * b -> turn]) << 2))
                 return 0;
             return 1;
         }
         else {
-            if (is_attacked(b, (b -> pieces[KING + 6 * (b -> turn ^ 1)]) >> 1) || is_attacked(b, (b -> pieces[KING + 6 * (b -> turn ^ 1)]) >> 2))
+            if (is_attacked(b, (b -> pieces[KING + 6 * b -> turn]) >> 1) || is_attacked(b, (b -> pieces[KING + 6 * b -> turn]) >> 2))
                 return 0;
             return 1;
         }
@@ -408,7 +408,7 @@ bitboard get_pinned(const board *b){
     bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
     bitboard my_piece = b -> player_pieces[b -> turn];
     bitboard opp_piece;
-    bitboard king_square = b -> pieces[KING + 6 - 6 * b -> turn];
+    bitboard king_square = b -> pieces[KING + 6 * b -> turn];
     int index = __builtin_ctzll(king_square);
     bitboard pinned = 0;
     bitboard temp;
@@ -418,7 +418,7 @@ bitboard get_pinned(const board *b){
     if ((blockers = occupied & rrays[index].west)){
         temp = 1ULL << (63 - __builtin_clzll(blockers));
         if (my_piece & temp){
-            opp_piece = b -> pieces[ROOK + 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
+            opp_piece = b -> pieces[ROOK + 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
             blockers &= ~temp;
             if (blockers){
                 temp2 = 1ULL << (63 - __builtin_clzll(blockers));
@@ -432,7 +432,7 @@ bitboard get_pinned(const board *b){
     if ((blockers = occupied & rrays[index].east)){
         temp = 1ULL << __builtin_ctzll(blockers);
         if (my_piece & temp){
-            opp_piece = b -> pieces[ROOK + 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
+            opp_piece = b -> pieces[ROOK + 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
             blockers &= ~temp;
             if (blockers){
                 temp2 = 1ULL <<  __builtin_ctzll(blockers);
@@ -447,7 +447,7 @@ bitboard get_pinned(const board *b){
     if ((blockers = occupied & rrays[index].north)){
         temp = 1ULL << __builtin_ctzll(blockers);
         if (my_piece & temp){
-            opp_piece = b -> pieces[ROOK + 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
+            opp_piece = b -> pieces[ROOK + 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
             blockers &= ~temp;
             if (blockers){
                 temp2 = 1ULL <<  __builtin_ctzll(blockers );
@@ -460,7 +460,7 @@ bitboard get_pinned(const board *b){
     if ((blockers = occupied & rrays[index].south)){
         temp = 1ULL << (63 - __builtin_clzll(blockers));
         if (my_piece & temp){
-            opp_piece = b -> pieces[ROOK + 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
+            opp_piece = b -> pieces[ROOK + 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
             blockers &= ~temp;
             if (blockers){
                 temp2 = 1ULL <<  (63 - __builtin_clzll(blockers));
@@ -475,7 +475,7 @@ bitboard get_pinned(const board *b){
     if ((blockers = occupied & brays[index].n_east)){
         temp = 1ULL <<  __builtin_ctzll(blockers);
         if (my_piece & temp){
-            opp_piece = b -> pieces[BISHOP+ 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
+            opp_piece = b -> pieces[BISHOP+ 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
             blockers &= ~temp;
             if (blockers){
                 temp2 = 1ULL << __builtin_ctzll(blockers);
@@ -488,7 +488,7 @@ bitboard get_pinned(const board *b){
     if ((blockers = occupied & brays[index].n_west)){
         temp = 1ULL <<  __builtin_ctzll(blockers);
         if (my_piece & temp){
-            opp_piece = b -> pieces[BISHOP+ 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
+            opp_piece = b -> pieces[BISHOP+ 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
             blockers &= ~temp;
             if (blockers){
                 temp2 = 1ULL << __builtin_ctzll(blockers);
@@ -502,7 +502,7 @@ bitboard get_pinned(const board *b){
     if ((blockers = occupied & brays[index].s_east)){
         temp = 1ULL << (63 - __builtin_clzll(blockers));
         if (my_piece & temp){
-            opp_piece = b -> pieces[BISHOP+ 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
+            opp_piece = b -> pieces[BISHOP+ 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
             blockers &= ~temp;
             if (blockers){
                 temp2 = 1ULL << (63 - __builtin_clzll(blockers));
@@ -515,7 +515,7 @@ bitboard get_pinned(const board *b){
     if ((blockers = occupied & brays[index].s_west)){
         temp = 1ULL << (63 - __builtin_clzll(blockers));
         if (my_piece & temp){
-            opp_piece = b -> pieces[BISHOP+ 6 * b -> turn] | b -> pieces[QUEEN + 6 * b -> turn];
+            opp_piece = b -> pieces[BISHOP+ 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
             blockers &= ~temp;
             if (blockers){
                 temp2 = 1ULL << (63 - __builtin_clzll(blockers));
@@ -553,9 +553,9 @@ int insufficient_material(const board *b){
         return 1;
 
     // K+(bishop or knight) vs K
-    if (w == 2 && bl == 1 && (b -> pieces[BISHOP] || b -> pieces[KNIGHT])) 
+    if (w == 2 && bl == 1 && (b -> pieces[BISHOP + 6] || b -> pieces[KNIGHT + 6])) 
         return 1;
-    if (bl == 2 && w == 1 && (b -> pieces[BISHOP + 6] || b -> pieces[KNIGHT + 6]))
+    if (bl == 2 && w == 1 && (b -> pieces[BISHOP] || b -> pieces[KNIGHT]))
          return 1;
 
     // K+(bishop or knight) vs K+(bishop or knight)

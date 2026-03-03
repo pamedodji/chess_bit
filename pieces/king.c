@@ -1,7 +1,7 @@
 #include "../header.h"
 
 void king_moves(const board *b, list_move *l){
-    bitboard square_idx = __builtin_ctzll(b -> pieces[KING + (b -> turn ^ 1) * 6]);
+    bitboard square_idx = __builtin_ctzll(b -> pieces[KING + b -> turn * 6]);
     bitboard to_add = kings_table[square_idx] & ~b -> player_pieces[b -> turn];
     int trailling_zeros;
     while (to_add){

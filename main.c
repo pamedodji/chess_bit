@@ -10,7 +10,7 @@ int main(){
     
     long start = get_time_ms();
 
-    verify_logics(5);
+    perft_divide(&b, 6);
     
     
     long end = get_time_ms();

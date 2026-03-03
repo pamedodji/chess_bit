@@ -3,15 +3,15 @@
 void init_board(board *b, rep_struct *r){
     memset(b, 0, sizeof(*b));
     b -> turn = WHITE;
-    b -> pieces[0] = 0x81ULL;
-    b -> pieces[1] = 0X42ULL;
-    b -> pieces[2] = 0X24ULL;
-    b -> pieces[3] = 0X8ULL; 
-    b -> pieces[4] = 0X10ULL;
-    b -> pieces[5] = ROWS[1];
-    for (int i = 6; i < 11; i++)
-        b -> pieces[i] = b -> pieces[i - 6] << 56;
-    b -> pieces[11] = ROWS[6];
+    b -> pieces[6] = 0x81ULL;
+    b -> pieces[7] = 0X42ULL;
+    b -> pieces[8] = 0X24ULL;
+    b -> pieces[9] = 0X8ULL; 
+    b -> pieces[10] = 0X10ULL;
+    b -> pieces[11] = ROWS[1];
+    for (int i = 0; i < 5; i++)
+        b -> pieces[i] = b -> pieces[i + 6] << 56;
+    b -> pieces[5] = ROWS[6];
     b -> castles = 1 + 2 + 4 + 8;
     b -> w_en_passant_flag = -1;
     b -> b_en_passant_flag = -1;
@@ -19,9 +19,9 @@ void init_board(board *b, rep_struct *r){
     b -> player_pieces[0] = 0;
     b -> player_pieces[1] = 0;
     for (int i = 0; i < 6; i++)
-        b -> player_pieces[1] |= b -> pieces[i];
+        b -> player_pieces[BLACK] |= b -> pieces[i];
     for (int i = 6; i < 12; i++)
-        b -> player_pieces[0] |= b -> pieces[i];
+        b -> player_pieces[WHITE] |= b -> pieces[i];
     
     b -> rep = r;
     b -> rep -> idx = 1;
@@ -39,11 +39,11 @@ char *bitboard_to_board(board *b){
     for (int i = 0; i < 64; i++)
         new_board[i] = '.';
     bitboard black_pieces = 0;
-    for (int i = 6; i < 12; i++){
+    for (int i = 0; i < 6; i++){
         black_pieces |= b -> pieces[i];
     }
     bitboard white_pieces = 0;
-    for (int i = 0; i < 6; i++){
+    for (int i = 6; i < 12; i++){
         white_pieces |= b -> pieces[i];
     }
     bitboard occupied =  black_pieces | white_pieces;
@@ -339,40 +339,40 @@ void fen_to_board(board *b, rep_struct *rep, char *fen){
         } 
         switch (c){
             case 'r':
-                b -> pieces[ROOK + 6] |=  (1ULL << count);
-                break;
-            case 'n':
-                b -> pieces[KNIGHT + 6] |=  (1ULL << count);
-                break;
-            case 'b':
-                b -> pieces[BISHOP + 6] |=  (1ULL << count);
-                break;
-            case 'q':
-                b -> pieces[QUEEN + 6] |=  (1ULL << count);
-                break;
-            case 'k':
-                b -> pieces[KING + 6] |=  (1ULL << count);
-                break;
-            case 'p':
-                b -> pieces[PAWN + 6] |=  (1ULL << count);
-                break;
-            case 'R':
                 b -> pieces[ROOK] |=  (1ULL << count);
                 break;
-            case 'N':
+            case 'n':
                 b -> pieces[KNIGHT] |=  (1ULL << count);
                 break;
-            case 'B':
+            case 'b':
                 b -> pieces[BISHOP] |=  (1ULL << count);
                 break;
-            case 'Q':
+            case 'q':
                 b -> pieces[QUEEN] |=  (1ULL << count);
                 break;
-            case 'K':
+            case 'k':
                 b -> pieces[KING] |=  (1ULL << count);
                 break;
+            case 'p':
+                b -> pieces[PAWN] |=  (1ULL << count);
+                break;
+            case 'R':
+                b -> pieces[ROOK + 6] |=  (1ULL << count);
+                break;
+            case 'N':
+                b -> pieces[KNIGHT + 6] |=  (1ULL << count);
+                break;
+            case 'B':
+                b -> pieces[BISHOP + 6] |=  (1ULL << count);
+                break;
+            case 'Q':
+                b -> pieces[QUEEN + 6] |=  (1ULL << count);
+                break;
+            case 'K':
+                b -> pieces[KING + 6] |=  (1ULL << count);
+                break;
             case 'P':
-                b -> pieces[PAWN ] |=  (1ULL << count);
+                b -> pieces[PAWN + 6] |=  (1ULL << count);
                 break;
             //Parsing error
             init_board(b, rep);
@@ -448,19 +448,19 @@ void fen_to_board(board *b, rep_struct *rep, char *fen){
     b -> player_pieces[0] = 0;
     b -> player_pieces[1] = 0;
     for (int i = 0; i < 6; i++)
-        b -> player_pieces[1] |= b -> pieces[i];
+        b -> player_pieces[BLACK] |= b -> pieces[i];
     for (int i = 6; i < 12; i++)
-        b -> player_pieces[0] |= b -> pieces[i];
+        b -> player_pieces[WHITE] |= b -> pieces[i];
     b -> fifty_moves = 0;
 }
 
 void print_board_info(board *b){
     bitboard white_pieces = 0;
-    for (int i = 0; i < 6; i++)
+    for (int i = 6; i < 12; i++)
         white_pieces |= b -> pieces[i];
     printf("white pieces %lu\n", white_pieces);
     bitboard black_pieces = 0;
-    for (int i = 6; i < 12; i++)
+    for (int i = 0; i < 6; i++)
         black_pieces |= b -> pieces[i];
     printf("black pieces %lu\n", black_pieces);
     printf("castles right %u\n", b -> castles);

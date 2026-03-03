@@ -28,10 +28,10 @@ void make_move(board *b, move m, int rep, unmake_info *info){
     if (dst & occupied){
         if (rep)
             b -> rep -> idx_start_looking = b -> rep ->idx;
-        opp_piece = 6 * b -> turn;
+        opp_piece = 6 * (b -> turn ^ 1);
         while ((b -> pieces[opp_piece] & dst) == 0)
             opp_piece++;
-        opp_piece -= 6 * b -> turn;
+        opp_piece -= 6 * (b -> turn ^ 1);
         if (info)
             info -> piece_dst = opp_piece;
     }
@@ -109,12 +109,12 @@ void unmake(board *b, unmake_info *info){
     u32 flag = get_m_int(info -> m, 3);
     //Castles part
     if (flag == CASTLE){
-        add_piece(b, b -> turn ^ 1, ROOK, b -> pieces[KING + 6 * b -> turn] <<  1);
-        delete_piece(b, b -> turn ^ 1, ROOK, b -> pieces[KING + 6 * b -> turn] >> 1);
+        add_piece(b, b -> turn ^ 1, ROOK, b -> pieces[KING + 6 * (b -> turn ^ 1)] <<  1);
+        delete_piece(b, b -> turn ^ 1, ROOK, b -> pieces[KING + 6 * (b -> turn ^ 1)] >> 1);
     }
     else if (flag == LONG_CASTLE){
-        add_piece(b, b -> turn ^ 1, ROOK, b -> pieces[KING + 6 * b -> turn] >> 2);
-        delete_piece(b, b -> turn ^ 1, ROOK, b -> pieces[KING + 6 * b -> turn ] << 1);
+        add_piece(b, b -> turn ^ 1, ROOK, b -> pieces[KING + 6 * (b -> turn ^ 1)] >> 2);
+        delete_piece(b, b -> turn ^ 1, ROOK, b -> pieces[KING + 6 * (b -> turn ^ 1)] << 1);
     }
     //putting the original src piece back 
     add_piece(b, b -> turn ^ 1, piece_src, src);
