@@ -5,6 +5,7 @@
 #include <time.h>
 #include <string.h>
 #include <immintrin.h>
+#include <omp.h>
 
 typedef uint64_t bitboard;
 typedef uint32_t u32;
@@ -18,7 +19,7 @@ extern bitboard kings_table[64];
 
 
 enum {WHITE = 1, BLACK = 0};
-enum {ROOK, KNIGHT, BISHOP, QUEEN, KING, PAWN, NO_PROM, EN_PASSANT, CASTLE, LONG_CASTLE};
+enum {ROOK, KNIGHT, BISHOP, QUEEN, KING, PAWN, NO_PROM, EN_PASSANT, CAPTURES, CASTLE, LONG_CASTLE};
 
 static const u64 MASK_BOARD = 0xFFFFFFFFFFFFFFFFULL;
 
@@ -102,13 +103,14 @@ void set_position_3(board *b, rep_struct *rep);
 void set_position_4(board *b, rep_struct *rep);
 void set_position_5(board *b, rep_struct *rep);
 long perft(board *b, int depth);
-void perft_divide(board *b, int depth);
+void perft_divide(board *b, int depth, int nb_threads);
 void perft_divide_2(board *b, int depth);
 void fen_to_board(board *b, rep_struct *rep, char *fen);
 long perft_2(board *b, int depth);
 void print_board_info(board *b);
 void free_board(board *b);
-void verify_logics(int depth);
+void verify_logics(int depth, int nb_threads);
+long long get_real_time_ms();
 
 //logics
 void init();

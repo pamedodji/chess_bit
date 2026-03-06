@@ -6,7 +6,7 @@
 
 void bishop_moves(const board *b, u32 sq_idx, list_move *l, uint32_t piece){
     bitboard occupied = b -> player_pieces[BLACK] | b -> player_pieces[WHITE];
-    bitboard my_piece = b -> player_pieces[b -> turn];
+    bitboard opp_piece = b -> player_pieces[b -> turn ^ 1];
     bitboard n_east;
     bitboard s_east;
     bitboard n_west;
@@ -30,11 +30,18 @@ void bishop_moves(const board *b, u32 sq_idx, list_move *l, uint32_t piece){
     if (s_west & occupied)
         s_west = bzlo_u64(s_west, 63 -__builtin_clzll((s_west & occupied) ));
     all_moves = n_west | n_east | s_east | s_west;
-    all_moves &= ~my_piece;
-    while (all_moves){
-        trailling_zeros = __builtin_ctzll(all_moves);
+    bitboard cpy_all_moves = all_moves & ~occupied;
+    while (cpy_all_moves){
+        trailling_zeros = __builtin_ctzll(cpy_all_moves);
         l -> m[l -> index] = create_move(sq_idx, trailling_zeros, piece, NO_PROM);
         (l -> index)++;
-        all_moves &= (all_moves - 1);
+        cpy_all_moves &= (cpy_all_moves - 1);
+    }
+    cpy_all_moves = all_moves & opp_piece;
+    while (cpy_all_moves){
+        trailling_zeros = __builtin_ctzll(cpy_all_moves);
+        l -> m[l -> index] = create_move(sq_idx, trailling_zeros, piece, CAPTURES);
+        (l -> index)++;
+        cpy_all_moves &= (cpy_all_moves - 1);
     }
 }

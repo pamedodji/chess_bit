@@ -1,8 +1,8 @@
 FILES = main.c logics.c utils.c zobrist.c pieces/knight.c pieces/bishop.c pieces/rook.c pieces/pawn.c pieces/king.c pieces/queen.c moves/moves.c kingstate.c
 OBJ = $(FILES:.c=.o)
 EXEC = prog
-CFLAGS = -O3 -march=native -fomit-frame-pointer -g 
-CFLAGS_PERF = -O3 -march=native -flto -fomit-frame-pointer -funroll-loops -ffast-math
+CFLAGS = -O3 -march=native -fomit-frame-pointer -g -fopenmp
+CFLAGS_PERF = -O3 -march=native -flto -fomit-frame-pointer -funroll-loops -ffast-math -fopenmp
 
 
 main : $(FILES)

@@ -27,13 +27,13 @@ void pawn_all_moves(const board *b, list_move *l){
         all_moves = ((no_prom_pawns & ~COLUMNS[7]) << 9) & opp; //right
         while (all_moves){
             trailling_zeros = pop_inplace(&all_moves);
-            l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, NO_PROM);
+            l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, CAPTURES);
             (l -> index)++;
         }
         all_moves = ((no_prom_pawns & ~COLUMNS[0]) << 7) & opp; //left
         while (all_moves){
             trailling_zeros = pop_inplace(&all_moves);
-            l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, NO_PROM);
+            l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, CAPTURES);
             (l -> index)++;
         }
         //promotion
@@ -109,13 +109,13 @@ void pawn_all_moves(const board *b, list_move *l){
         all_moves = ((no_prom_pawns & ~COLUMNS[0]) >> 9) & opp; //right
         while (all_moves){
             trailling_zeros = pop_inplace(&all_moves);
-            l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, NO_PROM);
+            l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, CAPTURES);
             (l -> index)++;
         }
         all_moves = ((no_prom_pawns & ~COLUMNS[7]) >> 7) & opp; //left
         while (all_moves){
             trailling_zeros = pop_inplace(&all_moves);
-            l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, NO_PROM);
+            l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, CAPTURES);
             (l -> index)++;
         }
         //promotion

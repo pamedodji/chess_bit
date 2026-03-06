@@ -11,7 +11,7 @@ void make_move(board *b, move m, int rep, unmake_info *info){
         info -> b_en_passant_flag = b -> b_en_passant_flag;
         info -> fifty_moves = b -> fifty_moves;
         info -> m = m;
-        info -> piece_dst = 255; //Set to 7 while we don't know if there's a piece at src (ROOKs to pawns are between 0 and 5 include)
+        info -> piece_dst = 255; //Set to 255 while we don't know if there's a piece at src (ROOKs to pawns are between 0 and 5 include)
         if (rep)
             info -> rep_idx = b -> rep -> idx_start_looking;
         else

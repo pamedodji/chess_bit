@@ -327,7 +327,7 @@ void legal_moves(board *b, list_move *l){
             sq_src = get_m_bitboard(l -> m[i], 0);     
             piece = get_m_int(l -> m[i], 2);
             flag = get_m_int(l -> m[i], 3);
-            if (flag >= CASTLE){
+            if (flag == CASTLE || flag == LONG_CASTLE){
                 sq_dst = get_m_bitboard(l -> m[i], 1);
                 if ((sq_src << 2) == sq_dst){
                     if (is_attacked(b, sq_src << 1) || is_attacked(b, sq_src << 2))
@@ -375,7 +375,7 @@ void legal_moves(board *b, list_move *l){
             flag   = get_m_int(l->m[i], 3);
 
           
-            if (flag >= CASTLE) 
+            if (flag == CASTLE || flag == LONG_CASTLE)
                 continue;
             if (piece == KING) {
                 if (sq_dst & ks.safe_sq)

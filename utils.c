@@ -22,7 +22,6 @@ void init_board(board *b, rep_struct *r){
         b -> player_pieces[BLACK] |= b -> pieces[i];
     for (int i = 6; i < 12; i++)
         b -> player_pieces[WHITE] |= b -> pieces[i];
-    
     b -> rep = r;
     b -> rep -> idx = 1;
     b -> rep -> idx_start_looking = 0;
@@ -30,6 +29,26 @@ void init_board(board *b, rep_struct *r){
     board cpy = *b;
     b -> rep -> rep_table[0] = zobrist_key(&cpy);
 }
+
+void sort(list_move *l_sort){
+    int j = 1;
+    u32 flag;
+    for (int i = 0; i < l_sort -> size; i++){
+        flag = get_m_int(l_sort -> m[i], 3);
+        if (flag == CAPTURES){
+            flag = get_m_int(l_sort -> m[i + j], 3);
+            while (i + j++ < l_sort -> size && flag == CAPTURES)
+                flag = get_m_int(l_sort -> m[i + j], 3);
+            if (i + j == l_sort -> size)
+                return;
+            move temp_move = l_sort -> m[i];
+            l_sort -> m[i] = l_sort -> m[i + j];
+            l_sort -> m[i + j] = temp_move;
+        }
+
+    }
+}
+
 
 
 char *bitboard_to_board(board *b){
@@ -156,6 +175,12 @@ long get_time_ms(){
     return time * 1000 / CLOCKS_PER_SEC;
 }
 
+long long get_real_time_ms(){
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (long long)ts.tv_sec * 1000LL + ts.tv_nsec / 1000000LL;
+}
+
 void print_moves(list_move *l_moves){
     int i;
     int row;
@@ -195,23 +220,55 @@ long perft(board *b, int depth){
     return nodes;
 }
 
-void perft_divide(board *b, int depth){
+
+
+void perft_divide(board *b, int depth, int nb_threads) {
     if (depth == 0)
         return;
-    long temp_nodes = 0;
-    long nodes = 0;
+
     list_move l;
-    unmake_info info;
     legal_moves(b, &l);
-    for (int i = 0; i < l.size; i++){
-        make_move(b, l.m[i], 0, &info);
-        temp_nodes = perft(b, depth - 1);
-        nodes += temp_nodes;
-        printf("%s %s : %ld\n", bitboard_to_string(get_m_bitboard(l.m[i], 0)), bitboard_to_string(get_m_bitboard(l.m[i], 1)), temp_nodes);
-        unmake(b, &info);
+
+    if (l.size == 0) {
+        printf("\ntotal moves 0\n");
+        printf("total nodes 0\n");
+        return;
     }
+
+    int threads = nb_threads;
+    if (threads < 1)
+        threads = 1;
+    if (threads > l.size)
+        threads = l.size;
+
+    long nodes = 0;
+    long *results = malloc(sizeof(long) * l.size);
+    if (!results)
+        return;
+
+    #pragma omp parallel for num_threads(threads) reduction(+:nodes)
+    for (int i = 0; i < l.size; i++) {
+        board local_board = *b;
+        unmake_info info;
+
+        make_move(&local_board, l.m[i], 0, &info);
+        long temp_nodes = perft(&local_board, depth - 1);
+
+        results[i] = temp_nodes;
+        nodes += temp_nodes;
+    }
+
+    for (int i = 0; i < l.size; i++) {
+        printf("%s %s : %ld\n",
+               bitboard_to_string(get_m_bitboard(l.m[i], 0)),
+               bitboard_to_string(get_m_bitboard(l.m[i], 1)),
+               results[i]);
+    }
+
     printf("\ntotal moves %d\n", l.size);
     printf("total nodes %ld\n", nodes);
+
+    free(results);
 }
 
 long perft_2(board *b, int depth){
@@ -283,186 +340,236 @@ int is_digit(char c){
 void fen_to_board(board *b, rep_struct *rep, char *fen){
     memset(b, 0, sizeof(*b));
     memset(rep -> rep_table, 0, sizeof(bitboard) * 150);
-    char c;
-    int index = 0; 
-    int count = 56;
+
     b -> w_en_passant_flag = -1;
     b -> b_en_passant_flag = -1;
-    int digit;
-    int temp_count = 0;
-    int i;
-    do{
-        
-   
-        c = fen[index];
-        if (c == ' ')
-            break;
+    b -> castles = 0;
+    b -> fifty_moves = 0;
 
-        
-            
-       
-        if (c == '/' ){
+    int index = 0;
+    int col = 7;
+    int file = 0;
+    int sq;
+    int digit;
+    char c;
+
+    while ((c = fen[index]) != '\0' && c != ' '){
+        if (c == '/'){
+            if (file != 8 || col == 0){
+                init_board(b, rep);
+                return;
+            }
+            col--;
+            file = 0;
             index++;
-            temp_count = 0;
-            count -= 16;
             continue;
         }
-        if ((digit = is_digit(c)) >= 0){
-            if (digit == 9 || digit == 0 || temp_count + digit >= 9){
-                //Parsing error
-                init_board(b, rep);
-                return;
-            }
-            i = 1;
-            
-            while (fen[index] != '\0' && i  < digit)
-                i++;
-         
-            if (i < digit){
-                //Parsing error
-                init_board(b, rep);
-                return;
-            }
- 
-            temp_count += digit;
-            count += digit;
-            index += 1; 
 
+        digit = is_digit(c);
+        if (digit >= 1 && digit <= 8){
+            if (file + digit > 8){
+                init_board(b, rep);
+                return;
+            }
+            file += digit;
+            index++;
             continue;
-        }   
-        
-        temp_count++;
-        if (temp_count >= 9){
-            //Parsing error
+        }
+
+        if (file >= 8){
             init_board(b, rep);
             return;
-        } 
+        }
+
+        sq = col * 8 + file;
+
         switch (c){
             case 'r':
-                b -> pieces[ROOK] |=  (1ULL << count);
+                b -> pieces[ROOK] |=  (1ULL << sq);
                 break;
             case 'n':
-                b -> pieces[KNIGHT] |=  (1ULL << count);
+                b -> pieces[KNIGHT] |=  (1ULL << sq);
                 break;
             case 'b':
-                b -> pieces[BISHOP] |=  (1ULL << count);
+                b -> pieces[BISHOP] |=  (1ULL << sq);
                 break;
             case 'q':
-                b -> pieces[QUEEN] |=  (1ULL << count);
+                b -> pieces[QUEEN] |=  (1ULL << sq);
                 break;
             case 'k':
-                b -> pieces[KING] |=  (1ULL << count);
+                b -> pieces[KING] |=  (1ULL << sq);
                 break;
             case 'p':
-                b -> pieces[PAWN] |=  (1ULL << count);
+                b -> pieces[PAWN] |=  (1ULL << sq);
                 break;
             case 'R':
-                b -> pieces[ROOK + 6] |=  (1ULL << count);
+                b -> pieces[ROOK + 6] |=  (1ULL << sq);
                 break;
             case 'N':
-                b -> pieces[KNIGHT + 6] |=  (1ULL << count);
+                b -> pieces[KNIGHT + 6] |=  (1ULL << sq);
                 break;
             case 'B':
-                b -> pieces[BISHOP + 6] |=  (1ULL << count);
+                b -> pieces[BISHOP + 6] |=  (1ULL << sq);
                 break;
             case 'Q':
-                b -> pieces[QUEEN + 6] |=  (1ULL << count);
+                b -> pieces[QUEEN + 6] |=  (1ULL << sq);
                 break;
             case 'K':
-                b -> pieces[KING + 6] |=  (1ULL << count);
+                b -> pieces[KING + 6] |=  (1ULL << sq);
                 break;
             case 'P':
-                b -> pieces[PAWN + 6] |=  (1ULL << count);
+                b -> pieces[PAWN + 6] |=  (1ULL << sq);
                 break;
-            //Parsing error
-            init_board(b, rep);
-            return;
-        } 
-        index += 1;
-        count++;
-    }while (c != ' ' && c != '\0');    
+            default:
+                init_board(b, rep);
+                return;
+        }
 
-    if (fen[index] == '\0' || fen[index + 1] == '\0'){
-        //Parsing error
+        file++;
+        index++;
+    }
+
+    if (col != 0 || file != 8 || fen[index] != ' '){
         init_board(b, rep);
         return;
     }
+
     index++;
+
     if (fen[index] == 'w')
         b -> turn = WHITE;
-    else
+    else if (fen[index] == 'b')
         b -> turn = BLACK;
-
-    if (fen[index + 1] == '\0'){
-        //Parsing error
+    else{
         init_board(b, rep);
         return;
     }
-    index+=2;
-    
-    b -> castles = 0;
 
-    if (fen[index] == 'K'){
-        b -> castles |= 1;
-        index++;
-    }
-    if (fen[index] == 'Q'){
-        b -> castles |= 2;
-        index++;
-    }
-    if (fen[index] == 'k'){
-        b -> castles |= 4;
-        index++;
-    }
-    if (fen[index] == 'q'){
-        b -> castles |= 8;
-        index++;
-    }
-    if (fen[index] == '-')
-        index ++;
-    
-    if (fen[index] == '\0'){
-        //Parsing error
-        init_board(b, rep);
-        return ;
-    }
     index++;
+    if (fen[index] != ' '){
+        init_board(b, rep);
+        return;
+    }
+
+    index++;
+
     if (fen[index] == '-')
-        index += 2;
-    else if (fen[index] != '\0'){
-        int col = fen[index] - 'a';
         index++;
-        int row = fen[index] - '1';
-        if (row == 2)
-            b -> w_en_passant_flag = col;
-        else
-            b -> b_en_passant_flag = col;
-        index += 2;
+    else{
+        int seen_castle = 0;
+
+        while (fen[index] != '\0' && fen[index] != ' '){
+            switch (fen[index]){
+                case 'K':
+                    if (b -> castles & 1){
+                        init_board(b, rep);
+                        return;
+                    }
+                    b -> castles |= 1;
+                    break;
+                case 'Q':
+                    if (b -> castles & 2){
+                        init_board(b, rep);
+                        return;
+                    }
+                    b -> castles |= 2;
+                    break;
+                case 'k':
+                    if (b -> castles & 4){
+                        init_board(b, rep);
+                        return;
+                    }
+                    b -> castles |= 4;
+                    break;
+                case 'q':
+                    if (b -> castles & 8){
+                        init_board(b, rep);
+                        return;
+                    }
+                    b -> castles |= 8;
+                    break;
+                default:
+                    init_board(b, rep);
+                    return;
+            }
+            seen_castle = 1;
+            index++;
+        }
+
+        if (!seen_castle){
+            init_board(b, rep);
+            return;
+        }
+    }
+
+    if (fen[index] != ' '){
+        init_board(b, rep);
+        return;
+    }
+
+    index++;
+
+    if (fen[index] == '-'){
+        index++;
     }
     else{
-        //Parsing error
-        init_board(b, rep);
-        return ;
+        int col_ep = fen[index] - 'a';
+        index++;
+        int row = fen[index] - '1';
+
+        if (col_ep < 0 || col_ep > 7 || row < 0 || row > 7){
+            init_board(b, rep);
+            return;
+        }
+
+        if (row == 2)
+            b -> w_en_passant_flag = col_ep;
+        else if (row == 5)
+            b -> b_en_passant_flag = col_ep;
+        else{
+            init_board(b, rep);
+            return;
+        }
+
+        index++;
     }
-  
-    b -> player_pieces[0] = 0;
-    b -> player_pieces[1] = 0;
-    for (int i = 0; i < 6; i++)
-        b -> player_pieces[BLACK] |= b -> pieces[i];
-    for (int i = 6; i < 12; i++)
-        b -> player_pieces[WHITE] |= b -> pieces[i];
-    b -> fifty_moves = 0;
+
+    if (fen[index] == ' '){
+        index++;
+        if (!is_digit(fen[index])){
+            init_board(b, rep);
+            return;
+        }
+        int value = 0;
+        while (is_digit(fen[index]) >= 0){
+            value = value * 10 + (fen[index] - '0');
+            index++;
+        }
+        b -> fifty_moves = value;
+
+        if (fen[index] == ' '){
+            index++;
+            if (!is_digit(fen[index])){
+                init_board(b, rep);
+                return;
+            }
+            while (is_digit(fen[index]) >= 0)
+                index++;
+        }
+    }
+
+    if (fen[index] != '\0'){
+        init_board(b, rep);
+        return;
+    }
+
+    b -> player_pieces[BLACK] = b -> pieces[PAWN] | b -> pieces[KNIGHT] | b -> pieces[BISHOP] | b -> pieces[ROOK] | b -> pieces[QUEEN] | b -> pieces[KING];
+    b -> player_pieces[WHITE] = b -> pieces[PAWN + 6] | b -> pieces[KNIGHT + 6] | b -> pieces[BISHOP + 6] | b -> pieces[ROOK + 6] | b -> pieces[QUEEN + 6] | b -> pieces[KING + 6];
 }
 
 void print_board_info(board *b){
-    bitboard white_pieces = 0;
-    for (int i = 6; i < 12; i++)
-        white_pieces |= b -> pieces[i];
-    printf("white pieces %lu\n", white_pieces);
-    bitboard black_pieces = 0;
-    for (int i = 0; i < 6; i++)
-        black_pieces |= b -> pieces[i];
-    printf("black pieces %lu\n", black_pieces);
+    printf("white pieces %lu\n", b -> player_pieces[WHITE]);
+    printf("black pieces %lu\n", b -> player_pieces[BLACK]);
     printf("castles right %u\n", b -> castles);
     printf("turn %d\n", b -> turn);
     printf("w_en_passant %d\n", b -> w_en_passant_flag);
@@ -477,22 +584,22 @@ void free_board(board *b){
         free(b);
 }
 
-void verify_logics(int depth){
+void verify_logics(int depth, int nb_threads){
     board b;
     rep_struct rep;
     init_board(&b, &rep);
-    perft_divide(&b, depth);
+    perft_divide(&b, depth, nb_threads);
     printf("\n\n");
     set_position_2(&b, &rep);
-    perft_divide(&b, depth);
+    perft_divide(&b, depth, nb_threads);
     printf("\n\n");
     set_position_3(&b, &rep);
-    perft_divide(&b, depth);
+    perft_divide(&b, depth, nb_threads);
     printf("\n\n");
     set_position_4(&b, &rep);
-    perft_divide(&b, depth);
+    perft_divide(&b, depth, nb_threads);
     printf("\n\n");
     set_position_5(&b, &rep);
-    perft_divide(&b, depth);
+    perft_divide(&b, depth, nb_threads);
 
 }

@@ -2,7 +2,9 @@
 
 void king_moves(const board *b, list_move *l){
     bitboard square_idx = __builtin_ctzll(b -> pieces[KING + b -> turn * 6]);
-    bitboard to_add = kings_table[square_idx] & ~b -> player_pieces[b -> turn];
+    u64 occupied = b -> player_pieces[WHITE] | b -> player_pieces[BLACK];
+    u64 opp_piece = b -> player_pieces[b -> turn ^ 1];
+    bitboard to_add = kings_table[square_idx] & ~occupied;
     int trailling_zeros;
     while (to_add){
         trailling_zeros = __builtin_ctzll(to_add);
@@ -10,7 +12,13 @@ void king_moves(const board *b, list_move *l){
         (l -> index)++;
         to_add &= (to_add - 1);
     }
-    bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
+    to_add = kings_table[square_idx] & opp_piece;
+    while (to_add){
+        trailling_zeros = __builtin_ctzll(to_add);
+        l -> m[l -> index] = create_move(square_idx, trailling_zeros, KING, CAPTURES); 
+        (l -> index)++;
+        to_add &= (to_add - 1);
+    }
     if (b -> turn == WHITE && (b -> castles & 1)){ //white can castle
         if ((~occupied & 32) && (~occupied & 64)){
             l -> m[l -> index] = create_move(square_idx, 6, KING, CASTLE); 

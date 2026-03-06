@@ -4,7 +4,7 @@
 
 void rook_moves(const board *b, u32 sq_idx, list_move *l, uint32_t piece){
     bitboard occupied = b -> player_pieces[BLACK] | b -> player_pieces[WHITE];
-    bitboard my_piece = b -> player_pieces[b -> turn];
+    bitboard opp_piece = b -> player_pieces[b -> turn ^ 1];
     bitboard north;
     bitboard south;
     bitboard east;
@@ -28,12 +28,19 @@ void rook_moves(const board *b, u32 sq_idx, list_move *l, uint32_t piece){
     if (west & occupied)
         west = bzlo_u64(west, 63 - __builtin_clzll((west & occupied) ));
     all_moves = north | east | south | west;
-    all_moves &= ~my_piece;
-    while (all_moves){
-        trailling_zeros = __builtin_ctzll(all_moves);
+    bitboard cpy_all_moves = all_moves & ~occupied;
+    while (cpy_all_moves){
+        trailling_zeros = __builtin_ctzll(cpy_all_moves);
         l -> m[l -> index] = create_move(sq_idx, trailling_zeros, piece, NO_PROM);
         (l -> index)++;
-        all_moves &= (all_moves - 1);
+        cpy_all_moves &= (cpy_all_moves - 1);
+    }
+    cpy_all_moves = all_moves & opp_piece;
+    while (cpy_all_moves){
+        trailling_zeros = __builtin_ctzll(cpy_all_moves);
+        l -> m[l -> index] = create_move(sq_idx, trailling_zeros, piece, CAPTURES);
+        (l -> index)++;
+        cpy_all_moves &= (cpy_all_moves - 1);
     }
 }
 
