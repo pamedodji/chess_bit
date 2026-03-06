@@ -7,7 +7,8 @@ int main(){
     rep_struct rep;
     unmake_info info;
     init_board(&b, &rep); //1
-    
+    set_position_3(&b ,&rep);
+
     long start = get_time_ms();
 
     perft_divide(&b, 6);

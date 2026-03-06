@@ -1,8 +1,8 @@
-FILES = main.c logics.c utils.c zobrist.c pieces/knight.c pieces/bishop.c pieces/rook.c pieces/pawn.c pieces/king.c pieces/queen.c moves/moves.c
+FILES = main.c logics.c utils.c zobrist.c pieces/knight.c pieces/bishop.c pieces/rook.c pieces/pawn.c pieces/king.c pieces/queen.c moves/moves.c kingstate.c
 OBJ = $(FILES:.c=.o)
 EXEC = prog
-CFLAGS = -O3 -march=native -fomit-frame-pointer -g -mbmi2
-CFLAGS_PERF = -O3 -march=native -flto -fomit-frame-pointer -funroll-loops -ffast-math 
+CFLAGS = -O3 -march=native -fomit-frame-pointer -g 
+CFLAGS_PERF = -O3 -march=native -flto -fomit-frame-pointer -funroll-loops -ffast-math
 
 
 main : $(FILES)
@@ -11,6 +11,8 @@ main : $(FILES)
 obj : $(OBJ)
 	gcc $(CFLAGS_PERF) $(OBJ) -o $(EXEC) 
 
+obj_debug : $(OBJ)
+	gcc $(CFLAGS) $(OBJ) -o $(EXEC)
 
 perf : $(FILES)
 	gcc $(CFLAGS_PERF) $(FILES) -o $(EXEC) 

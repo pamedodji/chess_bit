@@ -35,6 +35,14 @@ typedef struct{
     bitboard rep_table[150];
 }rep_struct;
 
+typedef struct {
+    u64 checkers;     
+    u64 pinned;        
+    u64 block_mask;    
+    u64 safe_sq; //Safe squares next to the king    
+    u8 num_checkers; 
+}king_state;
+
 typedef struct{
     bitboard pieces[12]; //FIRST 6 BLACK : 0 ROOK; 1 KNIGHT; 2 BISHOP ; 3 QUEEN; 4 KING; 5 PAWN
     bitboard player_pieces[2];
@@ -130,6 +138,7 @@ int game_state(board *b);
 int insufficient_material(const board *b);
 int is_checkmate(board *b);
 int is_draw(board *b);
+king_state get_king_state(board *b);
 
 //Zobrist
 void init_zobrist_tables();

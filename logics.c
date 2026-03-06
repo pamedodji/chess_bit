@@ -312,60 +312,97 @@ void pseudo_legal_moves(const board *b, list_move *l){
 }
 
 void legal_moves(board *b, list_move *l){
-    long start;
     pseudo_legal_moves(b, l);
-    
     if (l -> size == 0)
         return;
+    king_state ks = get_king_state(b);
     int new_ind = 0;
-    unmake_info info;
-    bitboard pinned = get_pinned(b);
-    int is_check_value = is_check(b);
     bitboard sq_src;
     bitboard sq_dst;
     u32 piece;
     u32 flag;
-    for (int index = 0 ; index < l -> size; index++){
-        sq_src = get_m_bitboard(l -> m[index], 0);
-        sq_dst = get_m_bitboard(l -> m[index], 1);
-        piece = get_m_int(l -> m[index], 2);
-        flag = get_m_int(l -> m[index], 3);
-        if ((sq_src & pinned) == 0 && is_check_value == 0 && piece != KING && 
-            flag != EN_PASSANT){
-            l -> m[new_ind] = l -> m[index];
-            new_ind++;
-        }
-        else{
-            if (piece == KING){
-                if(flag >= CASTLE){
-                    if (is_check(b))
+    unmake_info info;
+    if (ks.num_checkers == 0){
+        for (int i = 0; i < l -> size; i++){
+            sq_src = get_m_bitboard(l -> m[i], 0);     
+            piece = get_m_int(l -> m[i], 2);
+            flag = get_m_int(l -> m[i], 3);
+            if (flag >= CASTLE){
+                sq_dst = get_m_bitboard(l -> m[i], 1);
+                if ((sq_src << 2) == sq_dst){
+                    if (is_attacked(b, sq_src << 1) || is_attacked(b, sq_src << 2))
                         continue;
-                    if ((sq_src << 2) == sq_dst){
-                        if (is_attacked(b, sq_src << 1) || is_attacked(b, sq_src << 2))
-                            continue;
-                        l -> m[new_ind] = l -> m[index];
-                        new_ind++;
+                    l -> m[new_ind] = l -> m[i];
+                    new_ind++;
+                    continue;
+                }
+                else {
+                    if (is_attacked(b, sq_src >> 1) || is_attacked(b, sq_src >> 2))
                         continue;
-                    }
-                    else {
-                        if (is_attacked(b, sq_src >> 1) || is_attacked(b, sq_src >> 2))
-                            continue;
-                        l -> m[new_ind] = l -> m[index];
-                        new_ind++;
-                        continue;
-                    }
+                    l -> m[new_ind] = l -> m[i];
+                    new_ind++;
+                    continue;
                 }
             }
-            make_move(b, l -> m[index], 0, &info);
-    
-            b -> turn ^= 1;
-
-            if (!is_check(b)){
-                l -> m[new_ind] = l -> m[index];
+            else if (piece == KING){
+                sq_dst = get_m_bitboard(l -> m[i], 1);
+                if (sq_dst & ks.safe_sq){
+                    l -> m[new_ind] = l -> m[i];
+                    new_ind++;
+                }
+            }
+            else if ((sq_src & ks.pinned) || flag == EN_PASSANT){
+                make_move(b, l -> m[i], 0, &info);
+                b -> turn ^= 1;
+                if (!is_check(b)){
+                    l -> m[new_ind] = l -> m[i];
+                    new_ind++;
+                }
+                b -> turn ^=1;
+                unmake(b, &info);
+            }
+            else{
+                l -> m[new_ind] = l -> m[i];
                 new_ind++;
             }
-            b -> turn ^=1;
+        }
+    }
+    else if (ks.num_checkers == 1) {
+        for (int i = 0; i < l->size; i++) {
+            sq_src = get_m_bitboard(l->m[i], 0);
+            sq_dst = get_m_bitboard(l->m[i], 1);
+            piece  = get_m_int(l->m[i], 2);
+            flag   = get_m_int(l->m[i], 3);
+
+          
+            if (flag >= CASTLE) 
+                continue;
+            if (piece == KING) {
+                if (sq_dst & ks.safe_sq)
+                    l->m[new_ind++] = l->m[i];
+                continue;
+            }
+            if (!(sq_dst & ks.block_mask) && flag != EN_PASSANT)
+                continue;
+
+            make_move(b, l->m[i], 0, &info);
+            b->turn ^= 1;
+            if (!is_check(b))
+                l->m[new_ind++] = l->m[i];
+            b->turn ^= 1;
             unmake(b, &info);
+        }
+    }
+    else{
+        u64 king_sq = b -> pieces[KING + 6 * b -> turn];
+        u32 king_sq_idx = __builtin_ctzll(king_sq);
+        u64 kings_legals = ks.safe_sq;
+        u64 trailling_zeros;
+        while (kings_legals){
+            trailling_zeros = __builtin_ctzll(kings_legals);
+            l -> m[new_ind] = create_move(king_sq_idx, trailling_zeros, KING, NO_PROM);
+            new_ind++;
+            kings_legals &= (kings_legals -1);
         }
     }
     l -> size = new_ind;
@@ -397,135 +434,7 @@ int is_legal_move(const board *b, move m){
 
 
 
-int is_aligned(const bitboard king_square, const bitboard piece_square){
-    int piece_index = __builtin_ctzll(piece_square);
-    return ((brays[piece_index].s_east | brays[piece_index].s_west | brays[piece_index].n_east | brays[piece_index].n_west |
-        rrays[piece_index].east | rrays[piece_index].west | rrays[piece_index].north | rrays[piece_index].south) & king_square) > 0;
-    
-}
 
-bitboard get_pinned(const board *b){
-    bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
-    bitboard my_piece = b -> player_pieces[b -> turn];
-    bitboard opp_piece;
-    bitboard king_square = b -> pieces[KING + 6 * b -> turn];
-    int index = __builtin_ctzll(king_square);
-    bitboard pinned = 0;
-    bitboard temp;
-    bitboard temp2;
-    bitboard blockers;
-    // First rows
-    if ((blockers = occupied & rrays[index].west)){
-        temp = 1ULL << (63 - __builtin_clzll(blockers));
-        if (my_piece & temp){
-            opp_piece = b -> pieces[ROOK + 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL << (63 - __builtin_clzll(blockers));
-                if (opp_piece & temp2)
-                    pinned |= temp;
-                }
-            }
-        
-            
-    }
-    if ((blockers = occupied & rrays[index].east)){
-        temp = 1ULL << __builtin_ctzll(blockers);
-        if (my_piece & temp){
-            opp_piece = b -> pieces[ROOK + 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL <<  __builtin_ctzll(blockers);
-                if (opp_piece & temp2)
-                    pinned |= temp;
-            }
-
-        }
-            
-    }
-    //Seconde columns
-    if ((blockers = occupied & rrays[index].north)){
-        temp = 1ULL << __builtin_ctzll(blockers);
-        if (my_piece & temp){
-            opp_piece = b -> pieces[ROOK + 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL <<  __builtin_ctzll(blockers );
-                if (opp_piece & temp2)
-                    pinned |= temp;
-            }
-
-        }
-    }
-    if ((blockers = occupied & rrays[index].south)){
-        temp = 1ULL << (63 - __builtin_clzll(blockers));
-        if (my_piece & temp){
-            opp_piece = b -> pieces[ROOK + 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL <<  (63 - __builtin_clzll(blockers));
-                if (opp_piece & temp2)
-                    pinned |= temp;
-            }
-
-        }
-    }
-    //Now diagonals
-    //right up
-    if ((blockers = occupied & brays[index].n_east)){
-        temp = 1ULL <<  __builtin_ctzll(blockers);
-        if (my_piece & temp){
-            opp_piece = b -> pieces[BISHOP+ 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL << __builtin_ctzll(blockers);
-                if (opp_piece & temp2)
-                    pinned |= temp;
-            }
-        }
-    }
-    //left up
-    if ((blockers = occupied & brays[index].n_west)){
-        temp = 1ULL <<  __builtin_ctzll(blockers);
-        if (my_piece & temp){
-            opp_piece = b -> pieces[BISHOP+ 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL << __builtin_ctzll(blockers);
-                if (opp_piece & temp2)
-                    pinned |= temp;
-            }
-
-        }
-    }
-    //right down
-    if ((blockers = occupied & brays[index].s_east)){
-        temp = 1ULL << (63 - __builtin_clzll(blockers));
-        if (my_piece & temp){
-            opp_piece = b -> pieces[BISHOP+ 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL << (63 - __builtin_clzll(blockers));
-                if (opp_piece & temp2)
-                    pinned |= temp;
-            }
-        }
-    }
-    //left down
-    if ((blockers = occupied & brays[index].s_west)){
-        temp = 1ULL << (63 - __builtin_clzll(blockers));
-        if (my_piece & temp){
-            opp_piece = b -> pieces[BISHOP+ 6 * (b -> turn ^ 1)] | b -> pieces[QUEEN + 6 * (b -> turn ^ 1)];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL << (63 - __builtin_clzll(blockers));
-                if (opp_piece & temp2)
-                    pinned |= temp;
-            }
-        }
-    }
-    return pinned;
-}
 
 int is_repetition(const board *b){
     //Saying if the last move caused draw
