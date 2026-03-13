@@ -7,7 +7,8 @@ void pawn_all_moves(const board *b, list_move *l){
     bitboard opp = b -> player_pieces[b -> turn ^ 1];
     bitboard all_moves = 0;
     int trailling_zeros;
-
+    int ind;
+    
     if (b -> turn == WHITE){
         //forward
         all_moves = (no_prom_pawns << 8) & not_occupied; 
@@ -27,13 +28,55 @@ void pawn_all_moves(const board *b, list_move *l){
         all_moves = ((no_prom_pawns & ~COLUMNS[7]) << 9) & opp; //right
         while (all_moves){
             trailling_zeros = pop_inplace(&all_moves);
-            l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, CAPTURES);
+            ind = 6 * (b -> turn == BLACK);
+
+            while ((b -> pieces[ind] & (1ULL << trailling_zeros)) == 0)
+                ind++;
+            ind -= 6 * (b -> turn == BLACK);
+            switch (ind){
+                case ROOK:
+                    l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, CAPTURES_ROOK);
+                    break;
+                case BISHOP:
+                    l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, CAPTURES_BISHOP);
+                    break;
+                case QUEEN:
+                    l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, CAPTURES_QUEEN);
+                    break;
+                case PAWN:
+                    l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, CAPTURES_PAWN);
+                    break;
+                case KNIGHT:
+                    l -> m[l -> index] = create_move(trailling_zeros - 9, trailling_zeros, PAWN, CAPTURES_KNIGHT);
+                    break;
+            }
             (l -> index)++;
         }
         all_moves = ((no_prom_pawns & ~COLUMNS[0]) << 7) & opp; //left
         while (all_moves){
             trailling_zeros = pop_inplace(&all_moves);
-            l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, CAPTURES);
+            ind = 6 * (b -> turn == BLACK);
+
+            while ((b -> pieces[ind] & (1ULL << trailling_zeros)) == 0)
+                ind++;
+            ind -= 6 * (b -> turn == BLACK);
+            switch (ind){
+                case ROOK:
+                    l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, CAPTURES_ROOK);
+                    break;
+                case BISHOP:
+                    l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, CAPTURES_BISHOP);
+                    break;
+                case QUEEN:
+                    l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, CAPTURES_QUEEN);
+                    break;
+                case PAWN:
+                    l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, CAPTURES_PAWN);
+                    break;
+                case KNIGHT:
+                    l -> m[l -> index] = create_move(trailling_zeros - 7, trailling_zeros, PAWN, CAPTURES_KNIGHT);
+                    break;
+            }
             (l -> index)++;
         }
         //promotion
@@ -109,13 +152,55 @@ void pawn_all_moves(const board *b, list_move *l){
         all_moves = ((no_prom_pawns & ~COLUMNS[0]) >> 9) & opp; //right
         while (all_moves){
             trailling_zeros = pop_inplace(&all_moves);
-            l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, CAPTURES);
+            ind = 6 * (b -> turn == BLACK);
+
+            while ((b -> pieces[ind] & (1ULL << trailling_zeros)) == 0)
+                ind++;
+            ind -= 6 * (b -> turn == BLACK);
+            switch (ind){
+                case ROOK:
+                    l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, CAPTURES_ROOK);
+                    break;
+                case BISHOP:
+                    l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, CAPTURES_BISHOP);
+                    break;
+                case QUEEN:
+                    l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, CAPTURES_QUEEN);
+                    break;
+                case PAWN:
+                    l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, CAPTURES_PAWN);
+                    break;
+                case KNIGHT:
+                    l -> m[l -> index] = create_move(trailling_zeros + 9, trailling_zeros, PAWN, CAPTURES_KNIGHT);
+                    break;
+            }
             (l -> index)++;
         }
         all_moves = ((no_prom_pawns & ~COLUMNS[7]) >> 7) & opp; //left
         while (all_moves){
             trailling_zeros = pop_inplace(&all_moves);
-            l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, CAPTURES);
+            ind = 6 * (b -> turn == BLACK);
+
+            while ((b -> pieces[ind] & (1ULL << trailling_zeros)) == 0)
+                ind++;
+            ind -= 6 * (b -> turn == BLACK);
+            switch (ind){
+                case ROOK:
+                    l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, CAPTURES_ROOK);
+                    break;
+                case BISHOP:
+                    l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, CAPTURES_BISHOP);
+                    break;
+                case QUEEN:
+                    l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, CAPTURES_QUEEN);
+                    break;
+                case PAWN:
+                    l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, CAPTURES_PAWN);
+                    break;
+                case KNIGHT:
+                    l -> m[l -> index] = create_move(trailling_zeros + 7, trailling_zeros, PAWN, CAPTURES_KNIGHT);
+                    break;
+            }
             (l -> index)++;
         }
         //promotion

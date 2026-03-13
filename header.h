@@ -7,6 +7,8 @@
 #include <immintrin.h>
 #include <omp.h>
 
+#define DEPTH 8
+
 typedef uint64_t bitboard;
 typedef uint32_t u32;
 typedef uint64_t u64;
@@ -15,18 +17,17 @@ typedef int8_t i8;
 
 extern bitboard knight_table[64];
 extern bitboard kings_table[64];
-
+extern unsigned int nodes;
 
 
 enum {WHITE = 1, BLACK = 0};
-enum {ROOK, KNIGHT, BISHOP, QUEEN, KING, PAWN, NO_PROM, EN_PASSANT, CAPTURES, CASTLE, LONG_CASTLE};
+enum {ROOK, KNIGHT, BISHOP, QUEEN, KING, PAWN, NO_PROM, EN_PASSANT, CAPTURES_PAWN,  CAPTURES_BISHOP, CAPTURES_KNIGHT, CAPTURES_ROOK, CAPTURES_QUEEN, CASTLE, LONG_CASTLE};
 
 static const u64 MASK_BOARD = 0xFFFFFFFFFFFFFFFFULL;
 
 static const u64 ROWS[8] = {0xFFULL, 0xFFULL << 8,0xFFULL << 16, 0xFFULL << 24, 0xFFULL << 32, 0xFFULL << 40, 0xFFULL << 48, 0xFFULL << 56};
 static const u64 COLUMNS[8] = {0x0101010101010101ULL, 0x0101010101010101ULL << 1, 0x0101010101010101ULL << 2, 0x0101010101010101ULL << 3,
      0x0101010101010101ULL << 4, 0x0101010101010101ULL << 5, 0x0101010101010101ULL << 6, 0x0101010101010101ULL << 7};
-
 
 typedef u32 move;
 
@@ -134,8 +135,7 @@ void queen_all_moves(const board *b, list_move *l);
 void pseudo_legal_moves(const board *b, list_move *l);
 int is_legal_move(const board *b, move m);
 void unmake(board *b, unmake_info *info);
-int is_aligned(const bitboard king_square, const bitboard piece_square);
-bitboard get_pinned(const board *b);
+int is_repetition(const board *b);
 int game_state(board *b);
 int insufficient_material(const board *b);
 int is_checkmate(board *b);
@@ -146,6 +146,16 @@ king_state get_king_state(board *b);
 void init_zobrist_tables();
 bitboard zobrist_key(const board *b);
 
+//Game
+int eval(board *b);
+move best_move(board *b, int depth, int nb_threads, int (*eval)(board *));
+
+//Uci
+move parse_move(board *b, const char *str);
+void move_to_str(move m, char *out);
+void handle_position(board *b, rep_struct *rep, const char *line);
+void handle_go(board *b, int nb_threads);
+void play_game(int nb_threads);
 
 /*******************************************************************
 **************************INLINE FUNCTIONS**************************
@@ -239,9 +249,7 @@ static inline void delete_piece(board *b, u32 turn, u32 piece, bitboard square){
 }
 
 static inline void make_move_castle(board *b, const move m, const u32 flag, const u64 src, const u64 dst){
-    
         b -> castles &= ~(3 + (b -> turn ^ 1)* 9);
-
         delete_piece(b, b -> turn, KING, src);
         add_piece(b, b -> turn, KING, dst);
         if (flag == CASTLE) {// If we're castling
@@ -271,6 +279,28 @@ static inline void make_move_promotion(board *b, const move m, unmake_info *info
         delete_piece(b, b -> turn ^ 1, opp_piece, dst);
 }
 
+static inline int move_score(move m){
+    int flag = get_m_int(m, 3);
+    int piece = get_m_int(m, 2);
+    if (flag >= CAPTURES_PAWN && flag <= CAPTURES_QUEEN)
+        return flag + 100 + (piece == PAWN) * 100;   // captures
+
+    if (flag <= PAWN)       
+
+        return 200 + flag;
+
+    return 0;
+}
+
+static inline void debug_board_state(const board *b, int i) {
+    printf("=== i:%d ===\n", i);
+    printf("turn: %d\n", b->turn);
+    printf("castles: %d\n", b->castles);
+    printf("w_ep: %d\n", b->w_en_passant_flag);
+    printf("b_ep: %d\n", b->b_en_passant_flag);
+    printf("fifty: %d\n", b->fifty_moves);
+    printf("hash: %llu\n\n", zobrist_key(b));
+}
 enum {
   A1, B1, C1, D1, E1, F1, G1, H1,
   A2, B2, C2, D2, E2, F2, G2, H2,
@@ -290,6 +320,6 @@ extern rooksray rrays[64];
 
 typedef struct{
     bitboard n_east, n_west, s_east, s_west;
-}bishopray;
+}bishopsray;
 
-extern bishopray brays[64];
+extern bishopsray brays[64];

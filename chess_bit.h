@@ -1,1897 +1,2424 @@
-#ifndef MYLIB_H
-    #define MYLIB_H
-
-
-#ifdef __cplusplus
-    extern "C" {
-#endif
-
-
-enum {
-  CB_A1, CB_B1, CB_C1, CB_D1, CB_E1, CB_F1, CB_G1, CB_H1,
-  CB_A2, CB_B2, CB_C2, CB_D2, CB_E2, CB_F2, CB_G2, CB_H2,
-  CB_A3, CB_B3, CB_C3, CB_D3, CB_E3, CB_F3, CB_G3, CB_H3,
-  CB_A4, CB_B4, CB_C4, CB_D4, CB_E4, CB_F4, CB_G4, CB_H4,
-  CB_A5, CB_B5, CB_C5, CB_D5, CB_E5, CB_F5, CB_G5, CB_H5,
-  CB_A6, CB_B6, CB_C6, CB_D6, CB_E6, CB_F6, CB_G6, CB_H6,
-  CB_A7, CB_B7, CB_C7, CB_D7, CB_E7, CB_F7, CB_G7, CB_H7,
-  CB_A8, CB_B8, CB_C8, CB_D8, CB_E8, CB_F8, CB_G8, CB_H8
-};
-
-#include <stdint.h>
-
-typedef uint64_t cb_bitboard;
-
-enum {CB_WHITE = 1, CB_BLACK = 0};
-enum {CB_ROOK, CB_KNIGHT, CB_BISHOP, CB_QUEEN, CB_KING, CB_PAWN, CB_NO_PROM};
-
-
-extern const uint64_t CB_MASK_BOARD;
-
-extern const uint64_t CB_ROWS[8];
-extern const uint64_t CB_COLUMNS[8];
-
-
-typedef uint32_t cb_move;
-
-typedef struct{
-    int idx;
-    int idx_start_looking;
-    cb_bitboard rep_table[150];
-}cb_rep_struct;
-
-typedef struct{
-    uint8_t castles; //1 w_can_castle; 2 w_can_long; //3 b_can_castle; 4 b_can_long 
-    int8_t w_en_passant_flag;
-    int8_t b_en_passant_flag;
-    uint8_t fifty_moves;
-    cb_move m;
-    uint8_t piece_dst;
-    uint8_t flags_enP_prom; //1 if en_passant, 2 for rooks promotion, 4 knight, 8 bishop, 16 queen
-    uint8_t rep_idx;
-}cb_unmake_info;
-
-
-typedef struct{
-    cb_bitboard pieces[12]; //FIRST 6 CB_WHITE : 0 CB_ROOK; 1 CB_KNIGHT; 2 CB_BISHOP ; 3 CB_QUEEN; 4 CB_KING; 5 CB_PAWN
-    cb_bitboard player_pieces[2];
-    uint8_t turn;
-    uint8_t castles; //1 w_can_castle; 2 w_can_long; //3 b_can_castle; 4 b_can_long 
-    int8_t w_en_passant_flag;
-    int8_t b_en_passant_flag;
-    uint8_t fifty_moves;
-    cb_rep_struct *rep;
-}cb_board;
-
-
-typedef struct{
-    cb_move m[240];
-    int index;
-    int size;
-}cb_list_move;
-
- void cb_init();
- void cb_init_board(cb_board *b, cb_rep_struct *rep);
- char *cb_bitboard_to_board(cb_board *b);
- void cb_print_board(cb_board *b);
- cb_bitboard cb_string_to_bitboard(char *string_square);
- char *cb_bitboard_to_string(cb_bitboard square);
- long cb_get_time_ms();
- void cb_print_moves(cb_list_move *l_moves);
- long cb_perft(cb_board *b, int depth);
- void cb_perft_divide(cb_board *b, int depth);
- void cb_fen_to_board(cb_board *b, cb_rep_struct *rep, char *fen);
- void cb_make_move(cb_board *b, cb_move m, int rep, cb_unmake_info *info);
- int cb_is_attacked(const cb_board *b, cb_bitboard square);
- int cb_is_check(const cb_board *b);
- void cb_legal_moves(cb_board *b, cb_list_move *l);
- void cb_pseudo_legal_moves(const cb_board *b, cb_list_move *l);
- int cb_is_legal_move(const cb_board *b, cb_move m);
- void cb_unmake(cb_board *b, cb_unmake_info *info);
- int cb_game_state(cb_board *b);
- int cb_insufficient_material(const cb_board *b);
- int cb_is_checkmate(cb_board *b);
- int cb_is_draw(cb_board *b);
- cb_bitboard cb_zobrist_key(const cb_board *b);
-
-
-/*******************************************************************
-**************************INLINE FUNCTIONS**************************
-********************************************************************/
-
-static inline int cb_get_square_index(cb_bitboard square){
-    if (square == 0) 
-        return -1;
-    return __builtin_ctzll(square);
-}
-
-static inline cb_bitboard cb_index_to_bitboard(int idx){
-    return 1ULL << idx;
-}
-
-static inline int cb_get_row(cb_bitboard square){
-    int ind = cb_get_square_index(square);
-    return ind / 8;
-}
-
-static inline int cb_get_column(cb_bitboard square){
-    int ind = cb_get_square_index(square);
-    return ind % 8;
-}
-
-static inline int cb_on_board(int row, int column){
-    return 0 <= row && row < 8 && 0 <= column && column < 8;
-}
-
-static inline int cb_is_not_en_passant(const cb_board *b, const cb_bitboard src, const cb_bitboard dst, const int piece){
-    return piece != CB_PAWN || src == dst << 8 || src == dst << 16 || src == dst >> 8 || src == dst >> 16 || (dst & (b -> player_pieces[0] | b -> player_pieces[1])) != 0;
-}
-
-static inline int cb_is_digit(char c){
-    if (c <= '9' && c >= '0') 
-        return c - '0';
-    return -1;
-}
-
-static inline uint32_t cb_create_move(uint32_t src, uint32_t dst, uint32_t piece, uint32_t prom){
-    uint32_t m = src;
-    m |= dst << 8;
-    m |= piece << 16;
-    m |= prom << 24;
-    return m;
-}
-
-static inline uint32_t cb_get_m_int(cb_move m, int idx){
-    return (m >> (idx * 8)) & 0xFFu;
-}
-
-static inline cb_bitboard cb_get_m_bitboard(cb_move m, int idx){
-    uint32_t sq = cb_get_m_int(m, idx);    
-    return 1ULL << sq;
-}
-
-static const uint32_t CB_MASK_MOVE[4] = {
-    0x000000FFu, //src
-    0x0000FF00u, //dst
-    0x00FF0000u, //piece
-    0xFF000000u  //prom
-};
-
-static inline uint32_t cb_modify_prom(cb_move m, uint32_t prom){
-    cb_move new_m = m;
-    new_m &= ~CB_MASK_MOVE[3];
-    new_m |= prom << 24;
-    return new_m;
-}
-
-static inline cb_bitboard cb_splitmix64(cb_bitboard *state) {
-    cb_bitboard z = (*state += 0x9e3779b97f4a7c15ULL);
-    z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
-    z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
-    return z ^ (z >> 31);
-}
-
-
-#ifdef MYLIB_IMPLEMENTATION
+#ifndef CHESS_BIT_H
+#define CHESS_BIT_H
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
-#include <string.h>
+#include <immintrin.h>
+#include <omp.h>
 
-const uint64_t CB_MASK_BOARD = 0xFFFFFFFFFFFFFFFFULL;
+typedef uint32_t u32;
+typedef uint64_t u64;
+typedef uint8_t u8;
+typedef int8_t i8;
 
-const uint64_t CB_ROWS[8] = {0xFFULL, 0xFFULL << 8,0xFFULL << 16, 0xFFULL << 24, 0xFFULL << 32, 0xFFULL << 40, 0xFFULL << 48, 0xFFULL << 56};
-const uint64_t CB_COLUMNS[8] = {0x0101010101010101ULL, 0x0101010101010101ULL << 1, 0x0101010101010101ULL << 2, 0x0101010101010101ULL << 3,
-     0x0101010101010101ULL << 4, 0x0101010101010101ULL << 5, 0x0101010101010101ULL << 6, 0x0101010101010101ULL << 7};
+typedef u32 cb_move;
 
-static cb_bitboard east_table[64];
-static cb_bitboard west_table[64];
-static cb_bitboard south_table[64];
-static cb_bitboard north_table[64];
-static cb_bitboard knight_table[64];
-static cb_bitboard n_east_table[64];
-static cb_bitboard n_west_table[64];
-static cb_bitboard s_east_table[64];
-static cb_bitboard s_west_table[64];
-static cb_bitboard kings_table[64];
-static cb_bitboard rooks_table[64];
-static cb_bitboard bishops_table[64];
+static const u64 CB_MASK_BOARD = 0xFFFFFFFFFFFFFFFFULL;
 
-static cb_bitboard pos_table[12][64];
-static cb_bitboard k, q, K, Q; //k for white king 
-static cb_bitboard en_passant_table[8];
-static cb_bitboard turn_table;
+static const u64 CB_ROWS[8] = {
+	0xFFULL, 0xFFULL << 8, 0xFFULL << 16, 0xFFULL << 24,
+	0xFFULL << 32, 0xFFULL << 40, 0xFFULL << 48, 0xFFULL << 56
+};
 
-typedef struct{
-    int r;
-    int c;
-}cb_knight_mov;
+static const u64 CB_COLUMNS[8] = {
+	0x0101010101010101ULL, 0x0101010101010101ULL << 1,
+	0x0101010101010101ULL << 2, 0x0101010101010101ULL << 3,
+	0x0101010101010101ULL << 4, 0x0101010101010101ULL << 5,
+	0x0101010101010101ULL << 6, 0x0101010101010101ULL << 7
+};
 
-static const cb_knight_mov n_mov[8] = {{-2, -1}, {-2, 1}, {2, 1}, {2, -1}, {-1, -2}, {-1, 2}, {1, 2}, {1, -2}};
+static const u32 CB_MASK_MOVE[4] = {
+	0x000000FFu,   /* src   */
+	0x0000FF00u,   /* dst   */
+	0x00FF0000u,   /* piece */
+	0xFF000000u    /* flags */
+};
 
-//Zobrist key implementation
-static const cb_bitboard Zobrist_SEED = 0xABCDEFABCDEFABCDULL;
+static const u64 CB_ZOBRIST_SEED = 0xABCDEFABCDEFABCDULL;
 
+/*===========================================================================
+ * Enums
+ *=========================================================================*/
+enum { CB_WHITE = 1, CB_BLACK = 0 };
 
+enum {
+	CB_ROOK, CB_KNIGHT, CB_BISHOP, CB_QUEEN, CB_KING, CB_PAWN,
+	CB_NO_PROM,
+	CB_EN_PASSANT,
+	CB_CAPTURES_PAWN,
+	CB_CAPTURES_BISHOP,
+	CB_CAPTURES_KNIGHT,
+	CB_CAPTURES_ROOK,
+	CB_CAPTURES_QUEEN,
+	CB_CASTLE,
+	CB_LONG_CASTLE
+};
 
- void cb_init_board(cb_board *b, cb_rep_struct *r){
-    memset(b, 0, sizeof(*b));
-    b -> turn = CB_WHITE;
-    b -> pieces[0] = 0x81ULL;
-    b -> pieces[1] = 0X42ULL;
-    b -> pieces[2] = 0X24ULL;
-    b -> pieces[3] = 0X8ULL;
-    b -> pieces[4] = 0X10ULL;
-    b -> pieces[5] = CB_ROWS[1];
-    for (int i = 6; i < 11; i++)
-        b -> pieces[i] = b -> pieces[i - 6] << 56;
-    b -> pieces[11] = CB_ROWS[6];
-    b -> castles = 1 + 2 + 4 + 8;
-    b -> w_en_passant_flag = -1;
-    b -> b_en_passant_flag = -1;
-    b -> fifty_moves = 0;
-    b -> player_pieces[0] = 0;
-    b -> player_pieces[1] = 0;
-    for (int i = 0; i < 6; i++)
-        b -> player_pieces[1] |= b -> pieces[i];
-    for (int i = 6; i < 12; i++)
-        b -> player_pieces[0] |= b -> pieces[i];
-    
-    b -> rep = r;
-    b -> rep -> idx = 1;
-    b -> rep -> idx_start_looking = 0;
-    memset(b -> rep -> rep_table, 0, sizeof(cb_bitboard)*150);
-    cb_board cpy = *b;
-    b -> rep -> rep_table[0] = cb_zobrist_key(&cpy);
+enum {
+	CB_A1, CB_B1, CB_C1, CB_D1, CB_E1, CB_F1, CB_G1, CB_H1,
+	CB_A2, CB_B2, CB_C2, CB_D2, CB_E2, CB_F2, CB_G2, CB_H2,
+	CB_A3, CB_B3, CB_C3, CB_D3, CB_E3, CB_F3, CB_G3, CB_H3,
+	CB_A4, CB_B4, CB_C4, CB_D4, CB_E4, CB_F4, CB_G4, CB_H4,
+	CB_A5, CB_B5, CB_C5, CB_D5, CB_E5, CB_F5, CB_G5, CB_H5,
+	CB_A6, CB_B6, CB_C6, CB_D6, CB_E6, CB_F6, CB_G6, CB_H6,
+	CB_A7, CB_B7, CB_C7, CB_D7, CB_E7, CB_F7, CB_G7, CB_H7,
+	CB_A8, CB_B8, CB_C8, CB_D8, CB_E8, CB_F8, CB_G8, CB_H8
+};
+
+/*===========================================================================
+ * Struct types
+ *=========================================================================*/
+typedef struct {
+	int idx;
+	int idx_start_looking;
+	u64 rep_table[150];
+} cb_rep_struct;
+
+typedef struct {
+	u64 checkers;
+	u64 pinned;
+	u64 block_mask;
+	u64 safe_sq;
+	u8 num_checkers;
+} cb_king_state;
+
+typedef struct {
+	u64 pieces[12]; /* [0-5] black, [6-11] white */
+	u64 player_pieces[2];
+	u8 turn;
+	u8 castles; /* bit0 w_castle, bit1 w_long, bit2 b_castle, bit3 b_long */
+	i8 w_en_passant_flag;
+	i8 b_en_passant_flag;
+	u8 fifty_moves;
+	cb_rep_struct *rep;
+} cb_board;
+
+typedef struct {
+	u8 castles;
+	i8 w_en_passant_flag;
+	i8 b_en_passant_flag;
+	u8 fifty_moves;
+	cb_move m;
+	u8 piece_dst;
+	u8 rep_idx;
+} cb_unmake_info;
+
+typedef struct {
+	i8 r;
+	i8 c;
+} cb_knight_mov;
+
+typedef struct {
+	cb_move m[240];
+	u8 index;
+	u8 size;
+} cb_list_move;
+
+typedef struct {
+	u64 north, south, east, west;
+} cb_rooksray;
+
+typedef struct {
+	u64 n_east, n_west, s_east, s_west;
+} cb_bishopsray;
+
+/*===========================================================================
+ * Global tables (extern declarations)
+ *=========================================================================*/
+extern u64 cb_knight_table[64];
+extern u64 cb_kings_table[64];
+extern unsigned int cb_nodes;
+
+extern u64 cb_pos_table[12][64];
+extern u64 cb_zob_k, cb_zob_q, cb_zob_K, cb_zob_Q;
+extern u64 cb_en_passant_table[8];
+extern u64 cb_turn_table;
+
+extern cb_rooksray cb_rrays[64];
+extern cb_bishopsray cb_brays[64];
+
+/* Knight move offsets */
+static const cb_knight_mov cb_n_mov[8] = {
+	{-2, -1}, {-2, 1}, {2, 1}, {2, -1}, {-1, -2}, {-1, 2}, {1, 2}, {1, -2}
+};
+
+/*===========================================================================
+ * Public function declarations
+ *=========================================================================*/
+
+/* utils */
+void cb_init_board(cb_board *b, cb_rep_struct *rep);
+char *cb_bitboard_to_board(cb_board *b);
+void cb_print_board(cb_board *b);
+u64 cb_string_to_bitboard(char *string_square);
+void cb_print_bitboard_tab(u64 *tab);
+char *cb_bitboard_to_string(u64 square);
+long cb_get_time_ms();
+void cb_print_moves(cb_list_move *l);
+void cb_set_position_2(cb_board *b, cb_rep_struct *rep);
+void cb_set_position_3(cb_board *b, cb_rep_struct *rep);
+void cb_set_position_4(cb_board *b, cb_rep_struct *rep);
+void cb_set_position_5(cb_board *b, cb_rep_struct *rep);
+long cb_perft(cb_board *b, int depth);
+void cb_perft_divide(cb_board *b, int depth, int nb_threads);
+void cb_perft_divide_2(cb_board *b, int depth);
+void cb_fen_to_board(cb_board *b, cb_rep_struct *rep, char *fen);
+long cb_perft_2(cb_board *b, int depth);
+void cb_print_board_info(cb_board *b);
+void cb_free_board(cb_board *b);
+void cb_verify_logics(int depth, int nb_threads);
+long long cb_get_real_time_ms();
+
+/* logics */
+void cb_init();
+void cb_make_move(cb_board *b, cb_move m, int rep, cb_unmake_info *info);
+int cb_is_attacked_row(const cb_board *b, u64 square);
+int cb_is_attacked_column(const cb_board *b, u64 square);
+int cb_is_attacked_diagonal(const cb_board *b, u64 square);
+int cb_is_attacked_by_knight(const cb_board *b, u64 square);
+int cb_is_attacked_pawn(const cb_board *b, u64 square);
+int cb_is_attacked(const cb_board *b, u64 square);
+int cb_is_attacked_king(const cb_board *b, u64 square);
+int cb_is_check(const cb_board *b);
+void cb_legal_moves(cb_board *b, cb_list_move *l);
+void cb_rook_moves(const cb_board *b, u32 sq_idx, cb_list_move *l, u32 piece);
+void cb_bishop_moves(const cb_board *b, u32 sq_idx, cb_list_move *l, u32 piece);
+void cb_queen_moves(const cb_board *b, u32 sq_idx, cb_list_move *l);
+void cb_king_moves(const cb_board *b, cb_list_move *l);
+void cb_knight_moves(const cb_board *b, u32 sq_idx, cb_list_move *l);
+void cb_pawn_all_moves(const cb_board *b, cb_list_move *l);
+void cb_queen_all_moves(const cb_board *b, cb_list_move *l);
+void cb_pseudo_legal_moves(const cb_board *b, cb_list_move *l);
+int cb_is_legal_move(const cb_board *b, cb_move m);
+void cb_unmake(cb_board *b, cb_unmake_info *info);
+int cb_is_repetition(const cb_board *b);
+int cb_game_state(cb_board *b);
+int cb_insufficient_material(const cb_board *b);
+int cb_is_checkmate(cb_board *b);
+int cb_is_draw(cb_board *b);
+cb_king_state cb_get_king_state(cb_board *b);
+
+/* zobrist */
+void cb_init_zobrist_tables();
+u64 cb_zobrist_key(const cb_board *b);
+
+/* game (implemented externally by user) */
+int cb_eval(cb_board *b);
+cb_move cb_best_move(cb_board *b, int depth, int nb_threads, int (*eval)(cb_board *));
+
+/* uci */
+cb_move cb_parse_move(cb_board *b, const char *str);
+void cb_move_to_str(cb_move m, char *out);
+void cb_handle_position(cb_board *b, cb_rep_struct *rep, const char *line);
+void cb_handle_go(cb_board *b, int nb_threads);
+void cb_play_game(int nb_threads);
+
+/*===========================================================================
+ * Inline functions
+ *=========================================================================*/
+
+static inline int cb_pop_inplace(u64 *square) {
+	int tz = __builtin_ctzll(*square);
+	*square &= *square - 1;
+	return tz;
 }
 
-
- char *cb_bitboard_to_board(cb_board *b){
-    char *new_board = malloc(65 * sizeof(char));
-    if (!new_board)
-        return NULL;
-    for (int i = 0; i < 64; i++)
-        new_board[i] = '.';
-    cb_bitboard black_pieces = 0;
-    for (int i = 6; i < 12; i++){
-        black_pieces |= b -> pieces[i];
-    }
-    cb_bitboard white_pieces = 0;
-    for (int i = 0; i < 6; i++){
-        white_pieces |= b -> pieces[i];
-    }
-    cb_bitboard occupied =  black_pieces | white_pieces;
-    for (int i = 0; i < 64; i++){
-        if ((occupied & (1ULL << i)) > 0){
-            if ((b -> pieces[0] & (1ULL << i)) > 0){
-                new_board[i] = 'r';
-                continue;
-            }
-            if ((b -> pieces[6] & (1ULL << i)) > 0){
-                new_board[i] = 'R';
-                continue;
-            }
-            if ((b -> pieces[1] & (1ULL << i)) > 0){
-                new_board[i] = 'n';
-                continue;
-            }
-            if ((b -> pieces[7] & (1ULL << i)) > 0){
-                new_board[i] = 'N';
-                continue;
-            }
-            if ((b -> pieces[2] & (1ULL << i)) > 0){
-                new_board[i] = 'b';
-                continue;
-            }
-            if ((b -> pieces[8] & (1ULL << i)) > 0){
-                new_board[i] = 'B';
-                continue;
-            }
-            if ((b -> pieces[3] & (1ULL << i)) > 0){
-                new_board[i] = 'q';
-                continue;
-            }
-            if ((b -> pieces[9] & (1ULL << i)) > 0){
-                new_board[i] = 'Q';
-                continue;
-            }
-            if ((b -> pieces[4] & (1ULL << i)) > 0){
-                new_board[i] = 'k';
-                continue;
-            }
-            if ((b -> pieces[10] & (1ULL << i)) > 0){
-                new_board[i] = 'K';
-                continue;
-            }
-            if ((b -> pieces[5] & (1ULL << i)) > 0){
-                new_board[i] = 'p';
-                continue;
-            }
-            if ((b -> pieces[11] & (1ULL << i)) > 0){
-                new_board[i] = 'P';
-                continue;
-            }
-        }
-    }
-    new_board[64] = '\0';
-    return new_board;
+static inline int cb_get_square_index(u64 square) {
+	if (square == 0)
+		return -1;
+	return __builtin_ctzll(square);
 }
 
- void cb_print_board(cb_board *b){
-    char *board = cb_bitboard_to_board(b);
-    for (int i = 7; i >= 0; i--){
-        for (int j = 0; j < 8; j++)
-            printf("\t%c\t|",board[i * 8 + j]);
-        printf("\n");
-        printf("__________________________________________________________________________________________________________________________________");
-        printf("\n");
-    }
+static inline u64 cb_index_to_bitboard(int idx) {
+	return 1ULL << idx;
 }
 
- cb_bitboard cb_string_to_bitboard(char *string_square){
-    char letter = string_square[0];
-    int number = (int)(string_square[1] - '0');
-    return 1ULL << ((number - 1) * 8 + (letter - 'a'));
+static inline int cb_get_row(u64 square) {
+	return cb_get_square_index(square) / 8;
 }
 
- char *cb_bitboard_to_string(cb_bitboard square){
-    char *tab = malloc(sizeof(char) * 3);
-    cb_bitboard copy_square = square;
-    int row = 0;
-    while ((copy_square = copy_square >> 8) > 0)
-        row++;
-    cb_bitboard mask_row = CB_ROWS[row];
-
-    copy_square = square;
-    int column = 0;
-    while ((mask_row & (copy_square >> 1)) > 0){
-        copy_square >>= 1;
-        column++;
-    }
-    tab[0] = (char)('a' + column);
-    tab[1] = (char)('1' + row);
-    tab[2] = '\0';
-    return tab;
+static inline int cb_get_column(u64 square) {
+	return cb_get_square_index(square) % 8;
 }
 
-static void cb_print_bitboard_tab(cb_bitboard *tab){
-    if (!tab)
-        return;
-    int i = 0;
-    while (tab[i] != 0){
-        printf("%d : %s\n",i, cb_bitboard_to_string(tab[i]));
-        i++;
-    }
+static inline int cb_on_board(int row, int column) {
+	return 0 <= row && row < 8 && 0 <= column && column < 8;
 }
 
-
- long cb_get_time_ms(){
-    clock_t time = clock();
-    return time * 1000 / CLOCKS_PER_SEC;
+static inline int cb_is_not_en_passant(const cb_board *b, const u64 src, const u64 dst, const int piece) {
+	return piece != CB_PAWN
+		|| src == dst << 8 || src == dst << 16
+		|| src == dst >> 8 || src == dst >> 16
+		|| (dst & (b->player_pieces[0] | b->player_pieces[1])) != 0;
 }
 
- void cb_print_moves(cb_list_move *l_moves){
-    int i;
-    int row;
-    int col;
-    for (i = 0; i < l_moves -> size; i++){
-        row = cb_get_row(cb_get_m_bitboard(l_moves -> m[i], 0));
-        col = cb_get_column(cb_get_m_bitboard(l_moves -> m[i], 0));
-        printf("%c", (char)('a' + col));
-        printf("%c", (char)('1' + row));
-        printf("\t");
-        row = cb_get_row(cb_get_m_bitboard(l_moves -> m[i], 1));
-        col = cb_get_column(cb_get_m_bitboard(l_moves -> m[i], 1));
-        printf("%c", (char)('a' + col));
-        printf("%c", (char)('1' + row));
-        printf("\n");
-    }
-    printf("size %d\n",l_moves -> size);
+static inline u32 cb_create_move(u32 src, u32 dst, u32 piece, u32 flags) {
+	return src | (dst << 8) | (piece << 16) | (flags << 24);
 }
 
-
-
- long cb_perft(cb_board *b, int depth){
-    if (depth == 0)
-        return 1;
-    long nodes = 0;
-    cb_list_move l;
-    cb_legal_moves(b, &l);
-    cb_unmake_info info;
-    if (depth == 1)
-        return l.size;
-    for (int i = 0; i < l.size; i++){
-   
-        cb_make_move(b, l.m[i], 0, &info);
-        nodes += cb_perft(b, depth - 1);
-        cb_unmake(b, &info);
-    }
-    return nodes;
+static inline u32 cb_get_m_int(cb_move m, int idx) {
+	return (m >> (idx * 8)) & 0xFFu;
 }
 
- void cb_perft_divide(cb_board *b, int depth){
-    if (depth == 0)
-        return;
-    long temp_nodes = 0;
-    long nodes = 0;
-    cb_list_move l;
-    cb_unmake_info info;
-    cb_legal_moves(b, &l);
-    for (int i = 0; i < l.size; i++){
-        cb_make_move(b, l.m[i], 0, &info);
-        temp_nodes = cb_perft(b, depth - 1);
-        nodes += temp_nodes;
-        printf("%s %s : %ld\n", cb_bitboard_to_string(cb_get_m_bitboard(l.m[i], 0)), cb_bitboard_to_string(cb_get_m_bitboard(l.m[i], 1)), temp_nodes);
-        cb_unmake(b, &info);
-    }
-    printf("\ntotal moves %d\n", l.size);
-    printf("total nodes %ld\n", nodes);
+static inline u64 cb_get_m_bitboard(cb_move m, int idx) {
+	return 1ULL << cb_get_m_int(m, idx);
 }
 
-static long cb_perft_2(cb_board *b, int depth){
-    if (depth == 0)
-        return 1;
-    long nodes = 0;
-    cb_list_move l;
-    
-    cb_unmake_info info;
-    if (depth == 1){
-        cb_legal_moves(b, &l);
-        return l.size;
-    }
-
-    cb_pseudo_legal_moves(b, &l);
-    for (int i = 0; i < l.size; i++){
-        if (!cb_is_legal_move(b, l.m[i]))
-            continue;
-        cb_make_move(b, l.m[i], 0, &info);
-        nodes += cb_perft_2(b, depth - 1);
-        cb_unmake(b, &info);
-    }
-    return nodes;
+static inline u32 cb_modify_prom(cb_move m, u32 prom) {
+	return (m & ~CB_MASK_MOVE[3]) | (prom << 24);
 }
 
-static void cb_perft_divide_2(cb_board *b, int depth){
-    if (depth == 0)
-        return;
-    long temp_nodes = 0;
-    long nodes = 0;
-    cb_list_move l;
-    cb_unmake_info info;
-    cb_pseudo_legal_moves(b, &l);
-    for (int i = 0; i < l.size; i++){
-        if (!cb_is_legal_move(b, l.m[i]))
-            continue;
-        cb_make_move(b, l.m[i], 0, &info);
-        temp_nodes = cb_perft_2(b, depth - 1);
-        nodes += temp_nodes;
-        printf("%s %s : %ld\n", cb_bitboard_to_string(cb_get_m_bitboard(l.m[i], 0)), cb_bitboard_to_string(cb_get_m_bitboard(l.m[i], 1)), temp_nodes);
-        cb_unmake(b, &info);
-    }
-    printf("\ntotal moves %d\n", l.size);
-    printf("total nodes %ld\n", nodes);
+static inline u64 cb_splitmix64(u64 *state) {
+	u64 z = (*state += 0x9e3779b97f4a7c15ULL);
+	z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9ULL;
+	z = (z ^ (z >> 27)) * 0x94d049bb133111ebULL;
+	return z ^ (z >> 31);
 }
 
-static void cb_set_position_2(cb_board *b, cb_rep_struct *rep){
-    cb_fen_to_board(b, rep, "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
+static inline u64 cb_bzlo_u64(u64 squares, u32 idx) {
+	u64 mask = (1ULL << idx) - 1;
+	return _andn_u64(mask, squares);
 }
 
-static void cb_set_position_3(cb_board *b, cb_rep_struct *rep) {
-    cb_fen_to_board(b, rep, "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -");
+static inline void cb_add_piece(cb_board *b, u32 turn, u32 piece, u64 square) {
+	b->player_pieces[turn] |= square;
+	b->pieces[piece + 6 * turn] |= square;
 }
 
-static void cb_set_position_4(cb_board *b, cb_rep_struct *rep) {
-    cb_fen_to_board(b, rep, "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq -");
+static inline void cb_delete_piece(cb_board *b, u32 turn, u32 piece, u64 square) {
+	b->player_pieces[turn] &= ~square;
+	b->pieces[piece + 6 * turn] &= ~square;
 }
 
-static void cb_set_position_5(cb_board *b, cb_rep_struct *rep) {
-    cb_fen_to_board(b, rep, "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ -");
+static inline void cb_make_move_castle(cb_board *b, const cb_move m, const u32 flag, const u64 src, const u64 dst) {
+	b->castles &= ~(3 + (b->turn ^ 1) * 9);
+	cb_delete_piece(b, b->turn, CB_KING, src);
+	cb_add_piece(b, b->turn, CB_KING, dst);
+	if (flag == CB_CASTLE) {
+		cb_delete_piece(b, b->turn, CB_ROOK, dst << 1);
+		cb_add_piece(b, b->turn, CB_ROOK, src << 1);
+	}
+	else {
+		cb_delete_piece(b, b->turn, CB_ROOK, dst >> 2);
+		cb_add_piece(b, b->turn, CB_ROOK, dst << 1);
+	}
 }
 
-
-
- void cb_fen_to_board(cb_board *b, cb_rep_struct *rep, char *fen){
-    memset(b, 0, sizeof(*b));
-    memset(rep -> rep_table, 0, sizeof(cb_bitboard) * 150);
-    char c;
-    int index = 0; 
-    int count = 56;
-    b -> w_en_passant_flag = -1;
-    b -> b_en_passant_flag = -1;
-    int digit;
-    int temp_count = 0;
-    int i;
-    do{
-        
-   
-        c = fen[index];
-        if (c == ' ')
-            break;
-
-        
-            
-       
-        if (c == '/' ){
-            index++;
-            temp_count = 0;
-            count -= 16;
-            continue;
-        }
-        if ((digit = cb_is_digit(c)) >= 0){
-            if (digit == 9 || digit == 0 || temp_count + digit >= 9){
-                //Parsing error
-                cb_init_board(b, rep);
-                return;
-            }
-            i = 1;
-            
-            while (fen[index] != '\0' && i  < digit)
-                i++;
-         
-            if (i < digit){
-                //Parsing error
-                cb_init_board(b, rep);
-                return;
-            }
- 
-            temp_count += digit;
-            count += digit;
-            index += 1; 
-
-            continue;
-        }   
-        
-        temp_count++;
-        if (temp_count >= 9){
-            //Parsing error
-            cb_init_board(b, rep);
-            return;
-        } 
-        switch (c){
-            case 'r':
-                b -> pieces[CB_ROOK + 6] |=  (1ULL << count);
-                break;
-            case 'n':
-                b -> pieces[CB_KNIGHT + 6] |=  (1ULL << count);
-                break;
-            case 'b':
-                b -> pieces[CB_BISHOP + 6] |=  (1ULL << count);
-                break;
-            case 'q':
-                b -> pieces[CB_QUEEN + 6] |=  (1ULL << count);
-                break;
-            case 'k':
-                b -> pieces[CB_KING + 6] |=  (1ULL << count);
-                break;
-            case 'p':
-                b -> pieces[CB_PAWN + 6] |=  (1ULL << count);
-                break;
-            case 'R':
-                b -> pieces[CB_ROOK] |=  (1ULL << count);
-                break;
-            case 'N':
-                b -> pieces[CB_KNIGHT] |=  (1ULL << count);
-                break;
-            case 'B':
-                b -> pieces[CB_BISHOP] |=  (1ULL << count);
-                break;
-            case 'Q':
-                b -> pieces[CB_QUEEN] |=  (1ULL << count);
-                break;
-            case 'K':
-                b -> pieces[CB_KING] |=  (1ULL << count);
-                break;
-            case 'P':
-                b -> pieces[CB_PAWN ] |=  (1ULL << count);
-                break;
-            //Parsing error
-            cb_init_board(b, rep);
-            return;
-        } 
-        index += 1;
-        count++;
-    }while (c != ' ' && c != '\0');    
-
-    if (fen[index] == '\0' || fen[index + 1] == '\0'){
-        //Parsing error
-        cb_init_board(b, rep);
-        return;
-    }
-    index++;
-    if (fen[index] == 'w')
-        b -> turn = CB_WHITE;
-    else
-        b -> turn = CB_BLACK;
-
-    if (fen[index + 1] == '\0'){
-        //Parsing error
-        cb_init_board(b, rep);
-        return;
-    }
-    index+=2;
-    
-    b -> castles = 0;
-
-    if (fen[index] == 'K'){
-        b -> castles |= 1;
-        index++;
-    }
-    if (fen[index] == 'Q'){
-        b -> castles |= 2;
-        index++;
-    }
-    if (fen[index] == 'k'){
-        b -> castles |= 4;
-        index++;
-    }
-    if (fen[index] == 'q'){
-        b -> castles |= 8;
-        index++;
-    }
-    if (fen[index] == '-')
-        index ++;
-    
-    if (fen[index] == '\0'){
-        //Parsing error
-        cb_init_board(b, rep);
-        return ;
-    }
-    index++;
-    if (fen[index] == '-')
-        index += 2;
-    else if (fen[index] != '\0'){
-        int col = fen[index] - 'a';
-        index++;
-        int row = fen[index] - '1';
-        if (row == 2)
-            b -> w_en_passant_flag = col;
-        else
-            b -> b_en_passant_flag = col;
-        index += 2;
-    }
-    else{
-        //Parsing error
-        cb_init_board(b, rep);
-        return ;
-    }
-  
-    b -> player_pieces[0] = 0;
-    b -> player_pieces[1] = 0;
-    for (int i = 0; i < 6; i++)
-        b -> player_pieces[1] |= b -> pieces[i];
-    for (int i = 6; i < 12; i++)
-        b -> player_pieces[0] |= b -> pieces[i];
-    b -> fifty_moves = 0;
+static inline void cb_make_move_en_passant(cb_board *b, const cb_move m, cb_unmake_info *info, u64 src, u64 dst) {
+	cb_delete_piece(b, b->turn, CB_PAWN, src);
+	cb_add_piece(b, b->turn, CB_PAWN, dst);
+	if (b->turn == CB_WHITE)
+		cb_delete_piece(b, CB_BLACK, CB_PAWN, dst >> 8);
+	else
+		cb_delete_piece(b, CB_WHITE, CB_PAWN, dst << 8);
 }
 
-static void cb_print_board_info(cb_board *b){
-    cb_bitboard white_pieces = 0;
-    for (int i = 0; i < 6; i++)
-        white_pieces |= b -> pieces[i];
-    printf("white pieces %lu\n", white_pieces);
-    cb_bitboard black_pieces = 0;
-    for (int i = 6; i < 12; i++)
-        black_pieces |= b -> pieces[i];
-    printf("black pieces %lu\n", black_pieces);
-    printf("castles right %u\n", b -> castles);
-    printf("turn %d\n", b -> turn);
-    printf("w_en_passant %d\n", b -> w_en_passant_flag);
-    printf("b_en_passant %d\n", b -> b_en_passant_flag);
-    printf("fifty moves %d\n",  b -> fifty_moves);
-    
-    
+static inline void cb_make_move_promotion(cb_board *b, const cb_move m, cb_unmake_info *info, u32 flag, u64 src, u64 dst, u64 opp_piece) {
+	cb_delete_piece(b, b->turn, CB_PAWN, src);
+	cb_add_piece(b, b->turn, flag, dst);
+	if (opp_piece != 7)
+		cb_delete_piece(b, b->turn ^ 1, opp_piece, dst);
 }
 
-
-static void cb_verify_logics(int depth){
-    cb_board b;
-    cb_rep_struct rep;
-    cb_init_board(&b, &rep);
-    cb_perft_divide(&b, depth);
-    printf("\n\n");
-    cb_set_position_2(&b, &rep);
-    cb_perft_divide(&b, depth);
-    printf("\n\n");
-    cb_set_position_3(&b, &rep);
-    cb_perft_divide(&b, depth);
-    printf("\n\n");
-    cb_set_position_4(&b, &rep);
-    cb_perft_divide(&b, depth);
-    printf("\n\n");
-    cb_set_position_5(&b, &rep);
-    cb_perft_divide(&b, depth);
-
+static inline int cb_move_score(cb_move m) {
+	int flag = cb_get_m_int(m, 3);
+	int piece = cb_get_m_int(m, 2);
+	if (flag >= CB_CAPTURES_PAWN && flag <= CB_CAPTURES_QUEEN)
+		return flag + 100 + (piece == CB_PAWN) * 100;
+	if (flag <= CB_PAWN)
+		return 200 + flag;
+	return 0;
 }
 
- void cb_init_zobrist_tables(){
-    cb_bitboard s = Zobrist_SEED;
-    for (int i = 0; i < 12; i++){
-        for (int j = 0; j < 64; j++)
-            pos_table[i][j] = cb_splitmix64(&s);
-    }
-    k = cb_splitmix64(&s);
-    q = cb_splitmix64(&s);
-    K = cb_splitmix64(&s);
-    Q = cb_splitmix64(&s);
-    for (int i = 0; i < 8; i++)
-        en_passant_table[i] = cb_splitmix64(&s);
-    turn_table = cb_splitmix64(&s);
+static inline void cb_debug_board_state(const cb_board *b, int i) {
+	printf("=== i:%d ===\n", i);
+	printf("turn: %d\n", b->turn);
+	printf("castles: %d\n", b->castles);
+	printf("w_ep: %d\n", b->w_en_passant_flag);
+	printf("b_ep: %d\n", b->b_en_passant_flag);
+	printf("fifty: %d\n", b->fifty_moves);
+	printf("hash: %lu\n\n", cb_zobrist_key(b));
 }
 
- void cb_init(){
-    cb_init_zobrist_tables();
-    memset(east_table, 0, 64 * sizeof(cb_bitboard));
-    memset(west_table, 0, 64 * sizeof(cb_bitboard));
-    memset(south_table, 0, 64 * sizeof(cb_bitboard));
-    memset(north_table, 0, 64 * sizeof(cb_bitboard));
+/*===========================================================================
+ * IMPLEMENTATION
+ *=========================================================================*/
+#ifdef CHESSBIT_IMPLEMENTATION
 
-    cb_bitboard square;
-    int count;
-    for (int i = 0; i < 64; i++){
-        square = 1ULL << i;
-        count = 1;
-        int row = i/8;
-        int col = i % 8;
-        while (count < 8 && ((square << count) & CB_ROWS[row]) != 0 ){
-            east_table[i] |= square << count;
-            count++;
-        }
-        count = 1;
-        while (count < 8 && ((square >> count) & CB_ROWS[row]) != 0 ){
-            west_table[i] |= square >> count;
-            count++;
-        }
-        count = 1;
-        while (count < 8 && ((square << 8 * count) & CB_COLUMNS[col]) != 0 ){
-            north_table[i] |= square << 8 * count;
-            count++;
-        }
-        count = 1;
-        while (count < 8 && ((square >> 8 * count) & CB_COLUMNS[col]) != 0 ){
-            south_table[i] |= square >> 8 * count;
-            count++;
-        }
-    }
+u64 cb_knight_table[64];
+u64 cb_kings_table[64];
+cb_rooksray cb_rrays[64];
+cb_bishopsray cb_brays[64];
+unsigned int cb_nodes;
 
-    memset(knight_table, 0, 64 * sizeof(cb_bitboard));
-    int row;
-    int col;
-    int row_mov;
-    int col_mov;
-    for (int i = 0; i < 64; i++){
-        square = 1ULL << i; 
-        row = i / 8;
-        col = i % 8;
-        for (int j = 0; j < 8; j++){
-            row_mov = n_mov[j].r;
-            col_mov = n_mov[j].c;
-            if (!cb_on_board(row + row_mov, col + col_mov)) 
-                continue;
-            if (row_mov < 0)
-                knight_table[i] |= square >> (-row_mov * 8 - col_mov);
-            else
-                knight_table[i] |= square << (row_mov * 8 + col_mov);
-            
-        }
-    }
-    memset(n_east_table, 0, 64 * sizeof(cb_bitboard));
-    memset(n_west_table, 0, 64 * sizeof(cb_bitboard));
-    memset(s_east_table, 0, 64 * sizeof(cb_bitboard));
-    memset(s_west_table, 0, 64 * sizeof(cb_bitboard));
-    int horizontal;
-    int vertical ;
-    for (int i = 0; i < 64; i++){
-        row = i / 8;
-        col = i % 8;
-        square = 1ULL << i;
-        //UP RIGHT
-        horizontal = 1;
-        vertical = 1;
-        while ((row + vertical < 8) && (col + horizontal < 8)){
-            n_east_table[i] |= square << (8 * vertical + horizontal);
-            horizontal++;
-            vertical++;
-            
-        }
-        //UP LEFT
-        horizontal = 1;
-        vertical = 1;
-        while ((row + vertical) < 8 && (col - horizontal >= 0)){
-            n_west_table[i] |= square << (8 * vertical - horizontal);
-            horizontal++;
-            vertical++;
-            
-        }
-        //DOWN RIGHT
-        horizontal = 1;
-        vertical = 1;
-        while ((row - vertical >= 0) && col + horizontal < 8){
-            s_east_table[i] |= square >> (8 * vertical - horizontal);
-            horizontal++;
-            vertical++;
-            
-        }
-        //DOWN LEFT
-        horizontal = 1;
-        vertical = 1;
-        while ((row - vertical >= 0) && (col - horizontal >= 0)){
-            s_west_table[i] |= square >> (8 * vertical + horizontal);
-            horizontal++;
-            vertical++;
-            
-        } 
-      
-    }
-    memset(kings_table, 0, 64 * sizeof(cb_bitboard));
-    for (int i = 0; i < 64; i++){
-        row = i / 8;
-        col = i % 8;
-        square = 1ULL << i;
-        if (row + 1 < 8){
-            if (col + 1 < 8)
-                kings_table[i] |= square << 9;
-            if (col - 1 >= 0)
-                kings_table[i] |= square << 7;
-            kings_table[i] |= square << 8;
-        }
-        if (col + 1 < 8)
-            kings_table[i] |= square << 1;
-        if (col - 1 >= 0)
-            kings_table[i] |= square >> 1;
-        if (row - 1 >= 0){
-            if (col + 1 < 8)
-                kings_table[i] |= square >> 7;
-            if (col - 1 >= 0)
-                kings_table[i] |= square >> 9;
-            kings_table[i] |= square >> 8;
-        }
+/* -------------------------------------------------------------------------
+ * logics.c
+ * -----------------------------------------------------------------------*/
 
-    }
-
-    }
-
-
-static int cb_is_attacked_row(const cb_board *b, cb_bitboard square){
-    int j = CB_ROOK + 6 * b -> turn;
-    cb_bitboard Q_R_MASK = b -> pieces[j] | b -> pieces[3 + j];
-    cb_bitboard index;
-    cb_bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
-    cb_bitboard blockers = occupied & east_table[__builtin_ctzll(square)];
-    if (blockers){
-        index = __builtin_ctzll(blockers);
-        if ((1ULL << index) & Q_R_MASK)
-            return 1;
-    }
-    blockers = occupied & west_table[__builtin_ctzll(square)];
-    if (blockers){
-        index = 63 - __builtin_clzll(blockers);
-        if ((1ULL << index) & Q_R_MASK)
-            return 1;
-    }
-    return 0;
+static void rook_all_moves(const cb_board *b, cb_list_move *l) {
+	u64 copy_mask = b->pieces[CB_ROOK + 6 * b->turn];
+	while (copy_mask > 0) {
+		u64 square = copy_mask & -copy_mask;
+		copy_mask ^= square;
+		cb_rook_moves(b, __builtin_ctzll(square), l, CB_ROOK);
+	}
 }
 
-
-static int cb_is_attacked_column(const cb_board *b, cb_bitboard square){
-
-    int j = CB_ROOK + 6 * b -> turn;
-    cb_bitboard Q_R_MASK = b -> pieces[j] | b -> pieces[3 + j];
-    cb_bitboard index;
-    cb_bitboard occupied =  b -> player_pieces[0] | b -> player_pieces[1];
-    cb_bitboard blockers = occupied & south_table[__builtin_ctzll(square)];
-    if (blockers){
-        index = 63 -__builtin_clzll(blockers);
-        if ((1ULL << index) & Q_R_MASK)
-            return 1;
-    }
-    blockers = occupied & north_table[__builtin_ctzll(square)];
-    if (blockers){
-        index = __builtin_ctzll(blockers);
-        if ((1ULL << index) & Q_R_MASK)
-            return 1;
-    }
-    return 0;
+static void bishop_all_moves(const cb_board *b, cb_list_move *l) {
+	u64 copy_mask = b->pieces[CB_BISHOP + 6 * b->turn];
+	while (copy_mask > 0) {
+		int tz = __builtin_ctzll(copy_mask);
+		cb_bishop_moves(b, tz, l, CB_BISHOP);
+		copy_mask &= copy_mask - 1;
+	}
 }
 
-
-static int cb_is_attacked_diagonal(const cb_board *b, cb_bitboard square){
-    int j = CB_BISHOP + 6 * b -> turn;
-    cb_bitboard Q_B_MASK = b -> pieces[j] | b -> pieces[ 1 + j];
-    cb_bitboard index;
-    cb_bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
-    cb_bitboard blockers = occupied & n_east_table[__builtin_ctzll(square)];
-    if (blockers){
-        index = __builtin_ctzll(blockers);
-        if ((1ULL << index) & Q_B_MASK)
-            return 1;
-    }
-    blockers = occupied & n_west_table[__builtin_ctzll(square)];
-    if (blockers){
-        index = __builtin_ctzll(blockers);
-        if ((1ULL << index) & Q_B_MASK)
-            return 1;
-    }
-    blockers = occupied & s_east_table[__builtin_ctzll(square)];
-    if (blockers){
-        index = 63 -__builtin_clzll(blockers);
-        if ((1ULL << index) & Q_B_MASK)
-            return 1;
-    }
-    blockers = occupied & s_west_table[__builtin_ctzll(square)];
-    if (blockers){
-        index = 63 -__builtin_clzll(blockers);
-        if ((1ULL << index) & Q_B_MASK)
-            return 1;
-    }
-    return 0;
+static void knight_all_moves(const cb_board *b, cb_list_move *l) {
+	u64 copy_mask = b->pieces[CB_KNIGHT + 6 * b->turn];
+	while (copy_mask > 0) {
+		int tz = __builtin_ctzll(copy_mask);
+		cb_knight_moves(b, tz, l);
+		copy_mask &= copy_mask - 1;
+	}
 }
 
-static int cb_is_attacked_by_knight(const cb_board *b, cb_bitboard square){
-    cb_bitboard opp = b -> pieces[CB_KNIGHT + 6 * b -> turn];
-    return (opp & knight_table[__builtin_ctzll(square)]) > 0;
+void cb_init() {
+	cb_init_zobrist_tables();
+
+	memset(cb_rrays, 0, 64 * sizeof(cb_rooksray));
+	for (int i = 0; i < 64; i++) {
+		u64 square = 1ULL << i;
+		int row = i / 8;
+		int col = i % 8;
+		int count = 1;
+
+		while (count < 8 && ((square << count) & CB_ROWS[row]))
+			cb_rrays[i].east |= square << count++;
+		count = 1;
+		while (count < 8 && ((square >> count) & CB_ROWS[row]))
+			cb_rrays[i].west |= square >> count++;
+		count = 1;
+		while (count < 8 && ((square << 8 * count) & CB_COLUMNS[col]))
+			cb_rrays[i].north |= square << 8 * count++;
+		count = 1;
+		while (count < 8 && ((square >> 8 * count) & CB_COLUMNS[col]))
+			cb_rrays[i].south |= square >> 8 * count++;
+	}
+
+	memset(cb_knight_table, 0, 64 * sizeof(u64));
+	for (int i = 0; i < 64; i++) {
+		u64 square = 1ULL << i;
+		int row = i / 8;
+		int col = i % 8;
+
+		for (int j = 0; j < 8; j++) {
+			int rm = cb_n_mov[j].r;
+			int cm = cb_n_mov[j].c;
+			if (!cb_on_board(row + rm, col + cm))
+				continue;
+			if (rm < 0)
+				cb_knight_table[i] |= square >> (-rm * 8 - cm);
+			else
+				cb_knight_table[i] |= square << (rm * 8 + cm);
+		}
+	}
+
+	memset(cb_brays, 0, 64 * sizeof(cb_bishopsray));
+	for (int i = 0; i < 64; i++) {
+		u64 square = 1ULL << i;
+		int row = i / 8;
+		int col = i % 8;
+		int h = 1;
+		int v = 1;
+
+		while (row + v < 8 && col + h < 8) {
+			cb_brays[i].n_east |= square << (8 * v + h);
+			h++;
+			v++;
+		}
+		h = v = 1;
+		while (row + v < 8 && col - h >= 0) {
+			cb_brays[i].n_west |= square << (8 * v - h);
+			h++;
+			v++;
+		}
+		h = v = 1;
+		while (row - v >= 0 && col + h < 8) {
+			cb_brays[i].s_east |= square >> (8 * v - h);
+			h++;
+			v++;
+		}
+		h = v = 1;
+		while (row - v >= 0 && col - h >= 0) {
+			cb_brays[i].s_west |= square >> (8 * v + h);
+			h++;
+			v++;
+		}
+	}
+
+	memset(cb_kings_table, 0, 64 * sizeof(u64));
+	for (int i = 0; i < 64; i++) {
+		u64 sq = 1ULL << i;
+		int row = i / 8;
+		int col = i % 8;
+
+		if (row + 1 < 8) {
+			if (col + 1 < 8)
+				cb_kings_table[i] |= sq << 9;
+			if (col - 1 >= 0)
+				cb_kings_table[i] |= sq << 7;
+			cb_kings_table[i] |= sq << 8;
+		}
+		if (col + 1 < 8)
+			cb_kings_table[i] |= sq << 1;
+		if (col - 1 >= 0)
+			cb_kings_table[i] |= sq >> 1;
+		if (row - 1 >= 0) {
+			if (col + 1 < 8)
+				cb_kings_table[i] |= sq >> 7;
+			if (col - 1 >= 0)
+				cb_kings_table[i] |= sq >> 9;
+			cb_kings_table[i] |= sq >> 8;
+		}
+	}
 }
 
-static int cb_is_attacked_pawn(const cb_board *b, cb_bitboard square){
-    int row = cb_get_row(square);
-    int column = cb_get_column(square);
-    if (b -> turn == CB_WHITE)
-        return ((cb_on_board(row + 1 ,column + 1) &&  (((square << 9) & b -> pieces[CB_PAWN + 6]) > 0))) || ((cb_on_board(row +1 ,column - 1) &&  (((square << 7) & b -> pieces[CB_PAWN + 6]) > 0)));
-    return ((cb_on_board(row - 1 ,column + 1) &&  (((square >> 7) & b -> pieces[CB_PAWN]) > 0))) || ((cb_on_board(row - 1 ,column - 1) &&  (((square >> 9) & b -> pieces[CB_PAWN]) > 0)));
-}     
+int cb_is_attacked_row(const cb_board *b, u64 square) {
+	int piece = CB_ROOK + 6 * (b->turn ^ 1);
+	u64 QR = b->pieces[piece] | b->pieces[3 + piece];
+	u64 occ = b->player_pieces[CB_BLACK] | b->player_pieces[CB_WHITE];
+	u32 sq = __builtin_ctzll(square);
+	u64 bl = occ & cb_rrays[sq].east;
 
-static int cb_is_attacked_king(const cb_board *b, cb_bitboard square){
-    cb_bitboard opp_king = b -> pieces[CB_KING + 6 * b -> turn];
-    return (opp_king & kings_table[__builtin_ctzll(square)]) > 0;
+	if (bl && ((1ULL << __builtin_ctzll(bl)) & QR))
+		return 1;
+	bl = occ & cb_rrays[sq].west;
+	if (bl && ((1ULL << (63 - __builtin_clzll(bl))) & QR))
+		return 1;
+	return 0;
 }
 
- int cb_is_attacked(const cb_board *b, cb_bitboard square){
-    return cb_is_attacked_column(b, square) || cb_is_attacked_diagonal(b, square) || 
-        cb_is_attacked_row(b, square) || cb_is_attacked_by_knight(b, square) || cb_is_attacked_pawn(b, square) || cb_is_attacked_king(b, square);
+int cb_is_attacked_column(const cb_board *b, u64 square) {
+	int piece = CB_ROOK + 6 * (b->turn ^ 1);
+	u64 QR = b->pieces[piece] | b->pieces[3 + piece];
+	u64 occ = b->player_pieces[0] | b->player_pieces[1];
+	u32 sq = __builtin_ctzll(square);
+	u64 bl = occ & cb_rrays[sq].south;
+
+	if (bl && ((1ULL << (63 - __builtin_clzll(bl))) & QR))
+		return 1;
+	bl = occ & cb_rrays[sq].north;
+	if (bl && ((1ULL << __builtin_ctzll(bl)) & QR))
+		return 1;
+	return 0;
 }
 
- void cb_make_move(cb_board *b, cb_move m, int rep, cb_unmake_info *info){
-    cb_bitboard src = cb_get_m_bitboard(m, 0);
-    cb_bitboard dst = cb_get_m_bitboard(m, 1);
-    uint32_t promotion = cb_get_m_int(m, 3);
-    //info for unmake function, info = NULL if you don't want to use unmake func
-    if (info){
-        info -> castles = b -> castles;
-        info -> w_en_passant_flag = b -> w_en_passant_flag;
-        info -> b_en_passant_flag = b -> b_en_passant_flag;
-        info -> fifty_moves = b -> fifty_moves;
-        info -> m = m;
-        info -> piece_dst = 7; //Set to 7 while we don't know if there's a piece at cb_src(CB_ROOKs to pawns are between 0 and 5 include)
-        info  -> flags_enP_prom = 0; 
-        if (rep)
-            info -> rep_idx = b -> rep -> idx_start_looking;
-        else
-            info -> rep_idx = 255;
-    }
-    b -> fifty_moves++;
-    cb_bitboard occupied =  b -> player_pieces[0] | b -> player_pieces[1];
-    if (b -> turn)
-        b -> w_en_passant_flag = -1;
-    else
-        b -> b_en_passant_flag = -1;
-    uint32_t i = cb_get_m_int(m, 2) + 6 * (b -> turn ^ 1);
-    int opp_piece = 0;
-    if (dst & occupied){
-        if (rep)
-            b -> rep -> idx_start_looking = b -> rep ->idx;
-        opp_piece = 6 * b -> turn;
-        while ((b -> pieces[opp_piece] & dst) == 0)
-            opp_piece++;
-            
-        if (info)
-            info -> piece_dst = opp_piece - 6 * b -> turn;
-    }
+int cb_is_attacked_diagonal(const cb_board *b, u64 square) {
+	int piece = CB_BISHOP + 6 * (b->turn ^ 1);
+	u64 QB = b->pieces[piece] | b->pieces[1 + piece];
+	u64 occ = b->player_pieces[0] | b->player_pieces[1];
+	u32 sq = __builtin_ctzll(square);
+	u64 bl = occ & cb_brays[sq].n_east;
 
-    if (i == CB_KING || i == CB_PAWN ||i == CB_KING + 6 || i == CB_PAWN + 6){
-        if (i == CB_PAWN || i == CB_PAWN + 6){
-            if (rep)
-                b -> rep -> idx_start_looking = b -> rep ->idx;
-            if ((src & CB_ROWS[(b -> turn ^ 1) * 5 + 1]) > 0 && dst & CB_ROWS[(b -> turn ^ 1) * 1  + 3]){ // If we cb_move from 2nd row to 4th or 7th to 5th (en_passant)
-                if (b -> turn)
-                    b -> w_en_passant_flag = cb_get_column(src);
-                else
-                    b -> b_en_passant_flag = cb_get_column(src);
-            }
-   
-            b -> pieces[CB_PAWN + (b -> turn ^ 1) * 6] &= ~src;
-            b -> player_pieces[b -> turn] &= ~src;
-            b -> pieces[CB_PAWN + (b -> turn ^ 1) * 6] |= dst;
-            b -> player_pieces[b -> turn] |= dst;
-            if (dst & occupied){
-                b -> player_pieces[b -> turn ^ 1] &= ~dst; 
-                b -> pieces[opp_piece] &= ~dst;
-            }
-            
-            if (b -> turn && ((dst & ((src << 9) | (src << 7))) > 0) && (dst & occupied) == 0){ //We're en passening with whites
-                if (info)
-                    info  -> flags_enP_prom |= 1; //info end here
-                b -> pieces[CB_PAWN + 6] &= ~(dst >> 8);
-                b -> player_pieces[0] &= ~(dst >> 8);
-            } 
-            if (b -> turn == 0 && ((dst & ((src >> 9) | (src >> 7))) > 0) && (dst & occupied) == 0){ //We're en passening with black
-                if (info)
-                    info  -> flags_enP_prom |= 1; //info end here
-                b -> pieces[CB_PAWN ] &= ~(dst << 8);
-                b -> player_pieces[1] &= ~(dst << 8);
-            } 
-            if (b -> turn && (src & CB_ROWS[6]) > 0){ //white promotion part
-                b -> pieces[CB_PAWN + (b -> turn ^ 1) * 6] &= ~dst; // We delete the pawn that we added 10 lines before
-                if (promotion == CB_ROOK){
-                    b -> pieces[CB_ROOK] |= dst;
-                    b -> player_pieces[1] |= dst;
-                      if (info)
-                        info -> flags_enP_prom |= 2;
-                }
-                else if (promotion == CB_KNIGHT){
-                    b -> pieces[CB_KNIGHT] |= dst;
-                    b -> player_pieces[1] |= dst;
-                      if (info)
-                        info -> flags_enP_prom |= 4;
-                }
-                else if (promotion == CB_BISHOP){
-                    b -> pieces[CB_BISHOP] |= dst;
-                    b -> player_pieces[1] |= dst;
-                    if (info)
-                        info -> flags_enP_prom |= 8;
-                }
-
-                else{
-                    b -> pieces[CB_QUEEN] |= dst;
-                    b -> player_pieces[1] |= dst;
-                      if (info)
-                        info -> flags_enP_prom |= 16;
-                }
-            }
-            if (b -> turn == 0 && (src & CB_ROWS[1]) > 0){ //black promotion part
-                b -> pieces[CB_PAWN + (b -> turn ^ 1) * 6] &= ~dst; // We delete the pawn that we added 10 lines before
-                if (promotion == CB_ROOK){
-                    b -> pieces[CB_ROOK + 6] |= dst;
-                    b -> player_pieces[0] |= dst;
-                    if (info)
-                        info -> flags_enP_prom |= 2;
-                }
-                else if (promotion == CB_KNIGHT){
-                    b -> pieces[CB_KNIGHT + 6] |= dst;
-                    b -> player_pieces[0] |= dst;
-                    if (info)
-                        info -> flags_enP_prom |= 4;
-                }
-                else if (promotion == CB_BISHOP){
-                    b -> pieces[CB_BISHOP + 6] |= dst;
-                    b -> player_pieces[0] |= dst;
-                    if (info)
-                        info -> flags_enP_prom |= 8;
-                }
-                else{
-                    b -> pieces[CB_QUEEN + 6] |= dst;
-                    b -> player_pieces[0] |= dst;
-                    if (info)
-                        info -> flags_enP_prom |= 16;
-                }
-            }
-        }
-        else{
-            b -> castles &= ~(3 + (b -> turn ^ 1)* 9);
-            b -> pieces[i] &= ~src;
-            b -> player_pieces[b -> turn] &= ~src;
-            b -> player_pieces[b -> turn] |= dst;
-            b -> pieces[i] |= dst;
-            if (dst & occupied){
-                b -> player_pieces[b -> turn ^ 1] &= ~dst; 
-                b -> pieces[opp_piece] &= ~dst;
-            }
-            if (dst == (src << 2)) {// If we're castling
-                b -> pieces[i - 4] &= ~(dst << 1);
-                b -> pieces[i - 4] |= src << 1;
-                b -> player_pieces[b -> turn] |= src << 1;
-                b -> player_pieces[b -> turn] &= ~(dst << 1);
-            }
-            if ((dst == (src >> 2))){
-                b -> pieces[i - 4] &= ~(dst >> 2);
-                b -> pieces[i - 4] |= dst << 1;
-                b -> player_pieces[b -> turn] |= dst << 1;
-                b -> player_pieces[b -> turn] &= ~(dst >> 2);
-            }
-        }
-
-    }
-    else{   
-        b -> pieces[i] &= ~src;
-        b -> player_pieces[b -> turn] &= ~src;
-        b -> pieces[i] |= dst;
-        b -> player_pieces[b -> turn] |= dst;
-        if (dst & occupied){
-            b -> player_pieces[b -> turn ^ 1] &= ~dst; 
-            b -> pieces[opp_piece] &= ~dst;
-        }
-
-        
-    }
-    if (i == CB_ROOK){ // We delete rook castle right
-        if (src == 1ULL) //We can't long castle with whites
-            b -> castles &= ~2;
-        if (src == (1ULL << 7))
-            b -> castles &= ~1;
-    }
-    if (i == CB_ROOK + 6){
-        if (src == (1ULL << 56)) //We can't long castle with blacks
-            b -> castles &= ~8;
-        if (src == (1ULL << 63))
-            b -> castles &= ~4;
-    }
-    if ((dst & occupied ) > 0 && opp_piece == CB_ROOK){ // We delete a rook castle right
-        if (dst == 1ULL) //We can't long castle with whites
-            b -> castles &= ~2;
-        if (dst == (1ULL << 7))
-            b -> castles &= ~1;
-    }
-    if ((dst & occupied ) > 0 && opp_piece == CB_ROOK + 6){
-        if (dst == (1ULL << 56)) //We can't long castle with blacks
-            b -> castles &= ~8;
-        if (dst == (1ULL << 63))
-            b -> castles &= ~4;
-    }
-    if (rep){
-        (b -> rep) -> rep_table[(b -> rep) -> idx] = cb_zobrist_key(b);
-        if(b -> rep -> idx >= 149)
-            b -> rep -> idx = 0;
-        else
-            (b -> rep -> idx)++;
-    }
-    b -> turn ^= 1; 
-}  
-
- int cb_is_check(const cb_board *b){
-    cb_bitboard square = b -> pieces[CB_KING + 6 * (b -> turn ^ 1)];
-    return cb_is_attacked(b,square);
+	if (bl && ((1ULL << __builtin_ctzll(bl)) & QB))
+		return 1;
+	bl = occ & cb_brays[sq].n_west;
+	if (bl && ((1ULL << __builtin_ctzll(bl)) & QB))
+		return 1;
+	bl = occ & cb_brays[sq].s_east;
+	if (bl && ((1ULL << (63 - __builtin_clzll(bl))) & QB))
+		return 1;
+	bl = occ & cb_brays[sq].s_west;
+	if (bl && ((1ULL << (63 - __builtin_clzll(bl))) & QB))
+		return 1;
+	return 0;
 }
 
-static void cb_rook_moves(const cb_board *b, cb_bitboard square, cb_list_move *l, uint32_t piece){
-    cb_bitboard my_piece = b -> player_pieces[1];
-    cb_bitboard opp_piece = b -> player_pieces[0];
-    if (b -> turn == CB_BLACK){
-        my_piece = b -> player_pieces[0];
-        opp_piece = b -> player_pieces[1];
-    }
-    int row = cb_get_row(square);
-    int column = cb_get_column(square );
-    cb_bitboard mask_row = CB_ROWS[row];
-    cb_bitboard mask_column = CB_COLUMNS[column];
-
-    int i = 1;
-    while(((square << i) & mask_row) > 0){ //checking right rows 
-        if ((my_piece & square << i) > 0)
-            break;
-        l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square << i), piece, CB_NO_PROM); 
-        (l -> index)++;
-        if ((opp_piece & square << i) > 0)
-            break;
-        i++;
-    }
-
-    i = 1;
-    while(((square >> i) & mask_row) > 0){ //checking left rows 
-        if ((my_piece & square >> i) > 0)
-            break;
-
-        l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square >> i), piece, CB_NO_PROM); 
-        (l -> index)++;
-
-        if ((opp_piece & square >> i) > 0)
-            break;
-        i++;
-    }
-
-    i = 1;
-    while(((square << 8*i) & mask_column ) > 0){ //checking up 
-        if ((my_piece & square << 8* i) > 0)
-            break;
-        l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square << (8 * i)), piece, CB_NO_PROM); 
-
-        (l -> index)++;
-        if ((opp_piece & square << 8 * i) > 0)
-            break;
-        i++;
-    }
-    
-    i = 1;
-    while(((square >> 8*i) & mask_column) > 0){ //checking  down
-        if ((my_piece & square >> 8* i) > 0)
-            break;
-        l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square >> (8 * i)), piece, CB_NO_PROM); 
-        (l -> index)++;
-        if ((opp_piece & square >> 8 * i) > 0)
-            break;
-        i++;
-    }
+int cb_is_attacked_by_knight(const cb_board *b, u64 square) {
+	u64 opp = b->pieces[CB_KNIGHT + 6 * (b->turn ^ 1)];
+	return (opp & cb_knight_table[__builtin_ctzll(square)]) > 0;
 }
 
+int cb_is_attacked_pawn(const cb_board *b, u64 square) {
+	int row = cb_get_row(square);
+	int col = cb_get_column(square);
 
-static void cb_bishop_moves(const cb_board *b, cb_bitboard square, cb_list_move *l, uint32_t piece){
-    cb_bitboard my_piece = b -> player_pieces[1];
-    cb_bitboard opp_piece = b -> player_pieces[0];
-    if (b -> turn == CB_BLACK){
-        my_piece = b -> player_pieces[0];
-        opp_piece = b -> player_pieces[1];
-    }
-    
-    int row = cb_get_row(square);
-    int column = cb_get_column(square);
-
-    int i = 1;
-    int j = 1;
-   
-    while((square << (8*i + j)  > 0) && (row + i < 8 ) && (column + j < 8)){ //checking right_up diag
-        if ((my_piece & square << (8*i + j)) > 0)
-            break;
-        l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square << (8 * i + j)), piece, CB_NO_PROM); 
-        (l -> index)++;
-        if ((opp_piece & square << (8 * i + j)) > 0)
-            break;
-        i++;
-        j++;
-
-    }
-    
-    i = 1;
-    j = 1;
-    while(((square >> (8*i + j)) > 0) && (row - i >= 0) && (column - j >= 0)){ //checking right_downs rows
-        if ((my_piece & square >> (8*i + j)) > 0)
-            break;
-        l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square >> (8 * i + j)), piece, CB_NO_PROM); 
-        (l -> index)++;
-        
-        if ((opp_piece & square >> (8 * i + j)) > 0)
-            break;
-        i++;
-        j++;
-        
-    }
-    
-    i = 1;
-    j = 1;
-    while(((square << (8*i - j))  > 0) && (row + i < 8) && (column - j >= 0)){ //checking up 
-        if ((my_piece & square << (8*i - j)) > 0)
-            break;
- 
-        l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square << (8 * i - j)), piece, CB_NO_PROM); 
-        (l -> index)++;
-      
-        if ((opp_piece & square << (8 * i - j)) > 0)
-            break;
-        i++;
-        j++;
-    }
-   
-    i = 1;
-    j = 1;
-    while((((square >> (8*i - j))) > 0) && (row - i >= 0) && (column + j < 8)){ //checking  down
-        if ((my_piece & square >> (8*i - j)) > 0)
-            break;
-
-        l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square >> (8 * i - j)), piece, CB_NO_PROM); 
-        (l -> index)++;
-        
-        if ((opp_piece & square >> (8 * i - j)) > 0)
-            break;
-        i++;
-        j++;
-    }
-    
+	if (b->turn == CB_WHITE)
+		return (cb_on_board(row + 1, col + 1) && ((square << 9) & b->pieces[CB_PAWN]))
+			|| (cb_on_board(row + 1, col - 1) && ((square << 7) & b->pieces[CB_PAWN]));
+	return (cb_on_board(row - 1, col + 1) && ((square >> 7) & b->pieces[CB_PAWN + 6]))
+		|| (cb_on_board(row - 1, col - 1) && ((square >> 9) & b->pieces[CB_PAWN + 6]));
 }
 
-static void cb_queen_moves(const cb_board *b, cb_bitboard square, cb_list_move *l){
-    cb_rook_moves(b, square, l, CB_QUEEN);
-    cb_bishop_moves(b, square, l, CB_QUEEN);
+int cb_is_attacked_king(const cb_board *b, u64 square) {
+	u64 opp = b->pieces[CB_KING + 6 * (b->turn ^ 1)];
+	return (opp & cb_kings_table[__builtin_ctzll(square)]) > 0;
 }
 
-static void cb_knight_moves(const cb_board *b, cb_bitboard square, cb_list_move *l){
-    int square_idx = __builtin_ctzll(square);
-    cb_bitboard all_moves = knight_table[square_idx] & ~(b -> player_pieces[b -> turn]);
-    int trailling_zeros;
-    while (all_moves){
-        trailling_zeros = __builtin_ctzll(all_moves);
-        l -> m[l -> index] = cb_create_move(square_idx,trailling_zeros, CB_KNIGHT, CB_NO_PROM); 
-        (l -> index)++;
-        all_moves &= (all_moves -1);
-    }
+int cb_is_attacked(const cb_board *b, u64 square) {
+	return cb_is_attacked_column(b, square)
+		|| cb_is_attacked_row(b, square)
+		|| cb_is_attacked_diagonal(b, square)
+		|| cb_is_attacked_by_knight(b, square)
+		|| cb_is_attacked_pawn(b, square)
+		|| cb_is_attacked_king(b, square);
 }
 
-static void cb_king_moves(const cb_board *b, cb_list_move *l){
-    cb_bitboard square_idx = __builtin_ctzll(b -> pieces[CB_KING + (b -> turn ^ 1) * 6]);
-    cb_bitboard to_add = kings_table[square_idx] & ~b -> player_pieces[b -> turn];
-    int trailling_zeros;
-    while (to_add){
-        trailling_zeros = __builtin_ctzll(to_add);
-        l -> m[l -> index] = cb_create_move(square_idx, trailling_zeros, CB_KING, CB_NO_PROM); 
-        (l -> index)++;
-        to_add &= (to_add - 1);
-    }
-    cb_bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
-    if (b -> turn == CB_WHITE && (b -> castles & 1)){ //white can castle
-        if ((~occupied & 32) && (~occupied & 64)){
-            l -> m[l -> index] = cb_create_move(square_idx, 6, CB_KING, CB_NO_PROM); 
-            (l -> index)++;
-        }
-    }
-    if (b -> turn == CB_WHITE && (b -> castles & 2)){ //white can long castle
-        if ((~occupied & 8) && (~occupied & 4) && (~occupied & 2)){
-            l -> m[l -> index] = cb_create_move(square_idx, 2, CB_KING, CB_NO_PROM); 
-            (l -> index)++;
-        }
-    }
-    if (b -> turn == CB_BLACK && (b -> castles & 4)){ //black can castle
-        if ((~occupied & (1ULL << 61)) && (~occupied & (1ULL << 62))){
-            l -> m[l -> index] = cb_create_move(square_idx, 62, CB_KING, CB_NO_PROM); 
-            (l -> index)++;
-        }
-    }
-    if (b -> turn == CB_BLACK && (b -> castles & 8)){ //black can long castle
-        if ((~occupied & (1ULL << 59)) && (~occupied & (1ULL << 58)) && (~occupied & (1ULL << 57))){
-            l -> m[l -> index] = cb_create_move(square_idx, 58, CB_KING, CB_NO_PROM); 
-            (l -> index)++;
-        }
-    }
-
+int cb_is_check(const cb_board *b) {
+	return cb_is_attacked(b, b->pieces[CB_KING + 6 * b->turn]);
 }
 
-static void cb_pawn_moves(const cb_board *b, cb_bitboard square, cb_list_move *l){
-    int row = cb_get_row(square);
-    int col = cb_get_column(square);
-    cb_bitboard mask_row = CB_ROWS[1];
-    cb_bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
-    cb_bitboard opp = b -> player_pieces[0];
-    if (b -> turn == CB_BLACK){
-        mask_row = CB_ROWS[6];
-        opp = b -> player_pieces[1];
-    }
-    if (b -> turn == CB_WHITE){
-        if (((square << 8) & ~occupied) > 0){
-            l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square << 8), CB_PAWN, CB_NO_PROM); 
-            (l -> index)++;
-        
-            if (((square & mask_row) > 0) && ((square << 16) & ~occupied) > 0){
-                l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square << 16), CB_PAWN, CB_NO_PROM); 
-                (l -> index)++;
-            }
-        }
-        if ((((square << 9) & opp)  > 0 ) && (row + 1 < 8) && (col + 1 < 8)){
-            l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square << 9), CB_PAWN, CB_NO_PROM); 
-            (l -> index)++;
-            
-        }
-        if ((((square << 7) & opp)  > 0 ) && (row + 1 < 8) && (col - 1 >= 0)){
-            l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square << 7), CB_PAWN, CB_NO_PROM); 
-            (l -> index)++;
-        }
-        if (4 == row && (b -> b_en_passant_flag == col + 1 ) && (col + 1 < 8)){
-            l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square << 9), CB_PAWN, CB_NO_PROM); 
-            (l -> index)++;
-        }
-        if (4 == row && ((b -> b_en_passant_flag == col - 1) && (col - 1 >= 0))){
-            l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square << 7), CB_PAWN, CB_NO_PROM); 
-            (l -> index)++;
-        }
-    }
-    if (b -> turn == CB_BLACK){
-        if ((square >> 8  & ~occupied) > 0){
-            l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square >> 8), CB_PAWN, CB_NO_PROM); 
-            (l -> index)++;
-        
-            if (((square & mask_row) > 0) && ((square >> 16) & ~occupied) > 0){
-                l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square >> 16), CB_PAWN, CB_NO_PROM); 
-                (l -> index)++;
-            }
-        }
-        if ((((square >> 9) & opp)  > 0 ) && (row - 1 >= 0) && (col - 1 >= 0)){
-            l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square >> 9), CB_PAWN, CB_NO_PROM); 
-            (l -> index)++;
-        }
-        if ((((square >> 7) & opp)  > 0 ) && (row - 1 >= 0) && (col + 1 < 8)){
-            l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square >> 7), CB_PAWN, CB_NO_PROM); 
-            (l -> index)++;
-        }
-        if (3 == row && (b -> w_en_passant_flag == col + 1 ) && (col + 1 < 8)){
-            l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square >> 7), CB_PAWN, CB_NO_PROM); 
-            (l -> index)++;
-        }
-        if (3 == row && ((b -> w_en_passant_flag == col - 1) && (col - 1 >= 0))){
-            l -> m[l -> index] = cb_create_move(__builtin_ctzll(square), __builtin_ctzll(square >> 9), CB_PAWN, CB_NO_PROM); 
-            (l -> index)++;
-        }
-    } 
+void cb_queen_all_moves(const cb_board *b, cb_list_move *l) {
+	u64 copy_mask = b->pieces[CB_QUEEN + 6 * b->turn];
+	while (copy_mask > 0) {
+		int tz = __builtin_ctzll(copy_mask);
+		cb_queen_moves(b, tz, l);
+		copy_mask &= copy_mask - 1;
+	}
 }
 
-static void cb_rook_all_moves(const cb_board *b, cb_list_move *l){
-    int i = 0;
-    if (b -> turn == CB_BLACK)
-        i += 6; 
-    cb_bitboard copy_mask = (b -> pieces)[i];
-    int trailing_zeros;
-    while (copy_mask > 0){
-        trailing_zeros = __builtin_ctzll(copy_mask); //This function returns the index of the lowest bit = 1
-        cb_rook_moves(b, 1ULL << trailing_zeros, l, CB_ROOK);
-        copy_mask = copy_mask & ~(1ULL << trailing_zeros);
-    } 
+void cb_pseudo_legal_moves(const cb_board *b, cb_list_move *l) {
+	l->index = 0;
+	rook_all_moves(b, l);
+	bishop_all_moves(b, l);
+	knight_all_moves(b, l);
+	cb_pawn_all_moves(b, l);
+	cb_queen_all_moves(b, l);
+	cb_king_moves(b, l);
+	l->size = l->index;
+	l->index = 0;
 }
 
+void cb_legal_moves(cb_board *b, cb_list_move *l) {
+	cb_pseudo_legal_moves(b, l);
+	if (l->size == 0)
+		return;
 
-static void cb_bishop_all_moves(const cb_board *b, cb_list_move *l){
-    int i = 2;
-    if (b -> turn == CB_BLACK)
-        i += 6;
-    cb_bitboard copy_mask = (b -> pieces)[i];
-    int trailing_zeros;
-    while (copy_mask > 0){
-        trailing_zeros = __builtin_ctzll(copy_mask); //This function returns the index of the lowest bit = 1
-        cb_bishop_moves(b, 1ULL << trailing_zeros, l, CB_BISHOP);
-        copy_mask = copy_mask & ~(1ULL << trailing_zeros);
-    }     
+	cb_king_state ks = cb_get_king_state(b);
+	int new_ind = 0;
+	u64 sq_src;
+	u64 sq_dst;
+	u32 piece;
+	u32 flag;
+	cb_unmake_info info;
+
+	if (ks.num_checkers == 0) {
+		for (int i = 0; i < l->size; i++) {
+			sq_src = cb_get_m_bitboard(l->m[i], 0);
+			piece = cb_get_m_int(l->m[i], 2);
+			flag = cb_get_m_int(l->m[i], 3);
+
+			if (flag == CB_CASTLE || flag == CB_LONG_CASTLE) {
+				sq_dst = cb_get_m_bitboard(l->m[i], 1);
+				if ((sq_src << 2) == sq_dst) {
+					if (cb_is_attacked(b, sq_src << 1) || cb_is_attacked(b, sq_src << 2))
+						continue;
+				}
+				else {
+					if (cb_is_attacked(b, sq_src >> 1) || cb_is_attacked(b, sq_src >> 2))
+						continue;
+				}
+				l->m[new_ind++] = l->m[i];
+			}
+			else if (piece == CB_KING) {
+				sq_dst = cb_get_m_bitboard(l->m[i], 1);
+				if (sq_dst & ks.safe_sq)
+					l->m[new_ind++] = l->m[i];
+			}
+			else if ((sq_src & ks.pinned) || flag == CB_EN_PASSANT) {
+				cb_make_move(b, l->m[i], 0, &info);
+				b->turn ^= 1;
+				if (!cb_is_check(b))
+					l->m[new_ind++] = l->m[i];
+				b->turn ^= 1;
+				cb_unmake(b, &info);
+			}
+			else
+				l->m[new_ind++] = l->m[i];
+		}
+	}
+	else if (ks.num_checkers == 1) {
+		for (int i = 0; i < l->size; i++) {
+			sq_src = cb_get_m_bitboard(l->m[i], 0);
+			sq_dst = cb_get_m_bitboard(l->m[i], 1);
+			piece = cb_get_m_int(l->m[i], 2);
+			flag = cb_get_m_int(l->m[i], 3);
+
+			if (flag == CB_CASTLE || flag == CB_LONG_CASTLE)
+				continue;
+			if (piece == CB_KING) {
+				if (sq_dst & ks.safe_sq)
+					l->m[new_ind++] = l->m[i];
+				continue;
+			}
+			if (!(sq_dst & ks.block_mask) && flag != CB_EN_PASSANT)
+				continue;
+
+			cb_make_move(b, l->m[i], 0, &info);
+			b->turn ^= 1;
+			if (!cb_is_check(b))
+				l->m[new_ind++] = l->m[i];
+			b->turn ^= 1;
+			cb_unmake(b, &info);
+		}
+	}
+	else {
+		u64 king_sq = b->pieces[CB_KING + 6 * b->turn];
+		u32 king_idx = __builtin_ctzll(king_sq);
+		u64 legals = ks.safe_sq;
+
+		while (legals) {
+			u32 tz = __builtin_ctzll(legals);
+			l->m[new_ind++] = cb_create_move(king_idx, tz, CB_KING, CB_NO_PROM);
+			legals &= legals - 1;
+		}
+	}
+	l->size = new_ind;
 }
 
-static void cb_knight_all_moves(const cb_board *b, cb_list_move *l){
-    int i = 1;
-    if (b -> turn == CB_BLACK)
-        i += 6;
-    cb_bitboard copy_mask = (b -> pieces)[i];
-    int trailing_zeros;
-    while (copy_mask > 0){
-        trailing_zeros = __builtin_ctzll(copy_mask); //This function returns the index of the lowest bit = 1
-        cb_knight_moves(b, 1ULL << trailing_zeros, l);
-        copy_mask = copy_mask & ~(1ULL << trailing_zeros);
-    }       
+int cb_is_legal_move(const cb_board *b, cb_move m) {
+	cb_board temp = *b;
+	u64 src = cb_get_m_bitboard(m, 0);
+	u64 dst = cb_get_m_bitboard(m, 1);
+
+	if (cb_get_m_int(m, 3) == CB_KING) {
+		if (cb_is_check(b))
+			return 0;
+		if ((src << 2) == dst) {
+			if (cb_is_attacked(b, b->pieces[CB_KING + 6 * b->turn] << 1)
+			 || cb_is_attacked(b, b->pieces[CB_KING + 6 * b->turn] << 2))
+				return 0;
+			return 1;
+		}
+		if ((src >> 2) == dst) {
+			if (cb_is_attacked(b, b->pieces[CB_KING + 6 * b->turn] >> 1)
+			 || cb_is_attacked(b, b->pieces[CB_KING + 6 * b->turn] >> 2))
+				return 0;
+			return 1;
+		}
+	}
+
+	cb_make_move(&temp, m, 0, NULL);
+	temp.turn ^= 1;
+	return !cb_is_check(&temp);
 }
 
-static void cb_pawn_all_moves(const cb_board *b, cb_list_move *l){
-    int i = 5;
-    if (b -> turn == CB_BLACK)
-        i += 6;
-    cb_bitboard copy_mask = (b -> pieces)[i];
-    int trailing_zeros;
-    int index = l -> index;
-    while (copy_mask > 0){
-        trailing_zeros = __builtin_ctzll(copy_mask); 
-        cb_pawn_moves(b, 1ULL << trailing_zeros, l);
-        copy_mask = copy_mask & ~(1ULL << trailing_zeros);
-    }
+static int is_repetition_internal(const cb_board *b) {
+	int last = (b->rep->idx == 0) ? 149 : (b->rep->idx - 1);
+	u64 last_move = b->rep->rep_table[last];
+	int i = b->rep->idx_start_looking;
+	int count = 1;
 
-    int j = 0;
-
-    for (int i = index; i < l -> index; i++){
-        if((cb_get_m_bitboard(l -> m[i], 0) & CB_ROWS[6] && b -> turn) > 0 || (cb_get_m_bitboard(l -> m[i], 0)& CB_ROWS[1] && (b -> turn ^1)) > 0){
-            l -> m[i] = cb_modify_prom(l ->m[i], CB_QUEEN);
-            l -> m[l -> index + j] = cb_modify_prom(l ->m[i], CB_ROOK);
-            l -> m[l -> index + j + 1] = cb_modify_prom(l ->m[i], CB_BISHOP);
-            l -> m[l -> index + j + 2] = cb_modify_prom(l ->m[i], CB_KNIGHT);
-            j += 3;
-            
-        }
-    }
-    
-    l -> index += j;
+	while (i != last) {
+		if (b->rep->rep_table[i] == last_move) {
+			count++;
+			if (count == 3)
+				return 1;
+		}
+		if (++i == 150)
+			i = 0;
+	}
+	return count == 3;
 }
 
-static void cb_queen_all_moves(const cb_board *b, cb_list_move *l){
-    int i = 3;
-    if (b -> turn == CB_BLACK)
-        i += 6;
-    cb_bitboard copy_mask = (b -> pieces)[i];
-    int trailing_zeros;
-    while (copy_mask > 0){
-        trailing_zeros = __builtin_ctzll(copy_mask); //This function returns the index of the lowest bit = 1
-        cb_queen_moves(b, 1ULL << trailing_zeros, l);
-        copy_mask = copy_mask & ~(1ULL << trailing_zeros);
-    }     
+int cb_is_repetition(const cb_board *b) {
+	return is_repetition_internal(b);
 }
 
- void cb_pseudo_legal_moves(const cb_board *b, cb_list_move *l){
-    l -> index = 0;
-    cb_rook_all_moves(b, l);
-    cb_bishop_all_moves(b, l);
-    cb_knight_all_moves(b, l);
-    cb_pawn_all_moves(b, l);
-    cb_queen_all_moves(b, l);
-    cb_king_moves(b, l);    
-    l -> size = l -> index;  
-    l -> index = 0;
+int cb_insufficient_material(const cb_board *b) {
+	int w = __builtin_popcountll(b->player_pieces[0]);
+	int bl = __builtin_popcountll(b->player_pieces[1]);
+
+	if (w == 1 && bl == 1)
+		return 1;
+	if (w == 2 && bl == 1 && (b->pieces[CB_BISHOP + 6] || b->pieces[CB_KNIGHT + 6]))
+		return 1;
+	if (bl == 2 && w == 1 && (b->pieces[CB_BISHOP] || b->pieces[CB_KNIGHT]))
+		return 1;
+	if (w == 2 && bl == 2
+		&& (b->pieces[CB_BISHOP] || b->pieces[CB_KNIGHT])
+		&& (b->pieces[CB_BISHOP + 6] || b->pieces[CB_KNIGHT + 6]))
+		return 1;
+	return 0;
 }
 
-static cb_bitboard cb_get_pinned(const cb_board *b);
-
- void cb_legal_moves(cb_board *b, cb_list_move *l){
-    cb_pseudo_legal_moves(b, l);
-    
-    if (l -> size == 0)
-        return;
-    int new_ind = 0;
-    cb_unmake_info info;
-    cb_bitboard pinned = cb_get_pinned(b);
-    int is_check_value = cb_is_check(b);
-    for (int index = 0 ; index < l -> size; index++){
-        if ((cb_get_m_bitboard(l -> m[index], 0) & pinned) == 0 && is_check_value == 0 && cb_get_m_int(l -> m[index], 2) != CB_KING && 
-            cb_is_not_en_passant(b, cb_get_m_bitboard(l -> m[index], 0), cb_get_m_bitboard(l -> m[index], 1), cb_get_m_int(l -> m[index], 2))){
-            l -> m[new_ind] = l -> m[index];
-            new_ind++;
-        }
-        else{
-            if (b -> pieces[CB_KING] == cb_get_m_bitboard(l -> m[index], 0) ||  b -> pieces[CB_KING + 6] == cb_get_m_bitboard(l -> m[index], 0)){
-                if((cb_get_m_bitboard(l -> m[index], 0) << 2) == cb_get_m_bitboard(l -> m[index], 1) || 
-                    (cb_get_m_bitboard(l -> m[index], 0) >> 2) == cb_get_m_bitboard(l -> m[index], 1)){
-                    if (cb_is_check(b))
-                        continue;
-                    if ((cb_get_m_bitboard(l -> m[index], 0) << 2) == cb_get_m_bitboard(l -> m[index], 1)){
-                        if (cb_is_attacked(b, cb_get_m_bitboard(l -> m[index], 0) << 1) || cb_is_attacked(b, cb_get_m_bitboard(l -> m[index], 0) << 2))
-                            continue;
-                        l -> m[new_ind] = l -> m[index];
-                        new_ind++;
-                        continue;
-                    }
-                    else {
-                        if (cb_is_attacked(b, cb_get_m_bitboard(l -> m[index], 0) >> 1) || cb_is_attacked(b, cb_get_m_bitboard(l -> m[index], 0) >> 2))
-                            continue;
-                        l -> m[new_ind] = l -> m[index];
-                        new_ind++;
-                        continue;
-                    }
-                }
-            }
-            cb_make_move(b, l -> m[index], 0, &info);
-    
-            b -> turn ^= 1;
-
-            if (!cb_is_check(b)){
-                l -> m[new_ind] = l -> m[index];
-                new_ind++;
-            }
-            b -> turn ^=1;
-            cb_unmake(b, &info);
-        }
-    }
-    l -> size = new_ind;
+int cb_is_checkmate(cb_board *b) {
+	cb_list_move l;
+	cb_legal_moves(b, &l);
+	return l.size == 0 && cb_is_check(b);
 }
 
- int cb_is_legal_move(const cb_board *b, cb_move m){
-    cb_board temp = *b;
-    cb_bitboard src;
-    cb_bitboard dst1;
-    cb_bitboard dst2;
-    if (cb_get_m_int(m, 3) == CB_KING && (((src = cb_get_m_bitboard(m, 0)) == (dst1 = cb_get_m_bitboard(m, 1) >> 2)) || (src == (dst2 = cb_get_m_bitboard(m, 1) << 2)))){
-        if (cb_is_check(b))
-            return 0;
-        if ((src << 2) == dst1){
-            if (cb_is_attacked(b, (b -> pieces[CB_KING + 6 * (b -> turn ^ 1)]) << 1) || cb_is_attacked(b, (b -> pieces[CB_KING + 6 * (b -> turn ^ 1)]) << 2))
-                return 0;
-            return 1;
-        }
-        else {
-            if (cb_is_attacked(b, (b -> pieces[CB_KING + 6 * (b -> turn ^ 1)]) >> 1) || cb_is_attacked(b, (b -> pieces[CB_KING + 6 * (b -> turn ^ 1)]) >> 2))
-                return 0;
-            return 1;
-        }
-    }
-    cb_make_move(&temp, m, 0, NULL);
-    temp.turn ^= 1;
-    return !cb_is_check(&temp);
+int cb_is_draw(cb_board *b) {
+	if (b->fifty_moves >= 150)
+		return 1;
+	if (is_repetition_internal(b))
+		return 1;
+	if (cb_insufficient_material(b))
+		return 1;
+
+	cb_list_move l;
+	cb_legal_moves(b, &l);
+	if (l.size == 0 && !cb_is_check(b))
+		return 1;
+	return 0;
 }
 
- void cb_unmake(cb_board *b, cb_unmake_info *info){
-    cb_bitboard src = cb_get_m_bitboard(info -> m, 0);
-    cb_bitboard dst = cb_get_m_bitboard(info -> m, 1);
-    uint32_t piece_src = cb_get_m_int(info -> m, 2);
-    //Castles part
-    if ((b -> pieces[CB_KING] & dst) > 0 && (src << 2) == dst ){ //White castle
-        b -> pieces[CB_ROOK] |= (1ULL << 7);
-        b -> pieces[CB_ROOK] &= ~(1ULL << 5);
-    }
-    else if ((b -> pieces[CB_KING] & dst) > 0 && (src >> 2) == dst ){ //White long castle
-        b -> pieces[CB_ROOK] |= (1ULL << 0);
-        b -> pieces[CB_ROOK] &= ~(1ULL << 3);
-    }
-    else if ((b -> pieces[CB_KING + 6] & dst) > 0 && (src << 2) == dst ){ //black castle
-        b -> pieces[CB_ROOK + 6] |= (1ULL << 63);
-        b -> pieces[CB_ROOK + 6] &= ~(1ULL << 61);
-    }
-    else if ((b -> pieces[CB_KING + 6] & dst) > 0 && (src >> 2) == dst ){ //black long castle
-        b -> pieces[CB_ROOK + 6] |= (1ULL << 56);
-        b -> pieces[CB_ROOK + 6] &= ~(1ULL << 59);
-    }
-    //putting the original src piece back 
-    b -> pieces[ piece_src + 6 * b -> turn] |= src;
-    if (info -> flags_enP_prom <= 1) //No promotions happened
-        b -> pieces[piece_src + 6 * b -> turn] &= ~(dst);
-    else
-        b -> pieces[ __builtin_ctzll((info -> flags_enP_prom ) >> 1) + 6 * b -> turn] &= ~(dst); //if prom happened
-    
-    //if captures cb_happened(en_passant doesn't verify this condition)
-    if (info -> piece_dst != 7)
-        b -> pieces[info -> piece_dst + 6 * (b -> turn == CB_BLACK)] |= dst; 
-    if ((info -> flags_enP_prom & 1) == 1){  //en passant
-        if (b -> turn == CB_WHITE)
-            b -> pieces[ piece_src] |= dst << 8;
-        else   
-            b -> pieces[ piece_src + 6] |= dst >> 8; 
-    }
-    b -> player_pieces[0] = 0;
-    b -> player_pieces[1] = 0;
-    for (int i = 0; i < 6; i++)
-        b -> player_pieces[1] |= b -> pieces[i];
-    for (int i = 6; i < 12; i++)
-        b -> player_pieces[0] |= b -> pieces[i];
- 
-    b -> castles = info -> castles;
-    b -> w_en_passant_flag = info -> w_en_passant_flag;
-    b -> b_en_passant_flag = info -> b_en_passant_flag;
-    b -> fifty_moves = info -> fifty_moves;
-    if (info -> rep_idx != 255){
-        if (b -> rep -> idx == 0)
-            b -> rep -> idx = 149;
-        else
-            (b -> rep -> idx)--;
-        b -> rep -> idx_start_looking = info -> rep_idx;
-    }
-    
-    b -> turn ^= 1;
+int cb_game_state(cb_board *b) {
+	if (b->fifty_moves >= 150)
+		return 0;
+
+	cb_list_move l;
+	cb_legal_moves(b, &l);
+	if (l.size == 0)
+		return cb_is_check(b) ? 1 : 0;
+	if (is_repetition_internal(b))
+		return 0;
+	if (cb_insufficient_material(b))
+		return 0;
+	return 2;
 }
 
+/* -------------------------------------------------------------------------
+ * kingstate.c
+ * -----------------------------------------------------------------------*/
 
-static int cb_is_aligned(const cb_bitboard king_square, const cb_bitboard piece_square){
-    int piece_index = __builtin_ctzll(piece_square);
-    return ((s_east_table[piece_index] | s_west_table[piece_index] | n_east_table[piece_index] | n_west_table[piece_index] |
-        east_table[piece_index] | west_table[piece_index] | north_table[piece_index] | south_table[piece_index]) & king_square) > 0;
-    
+cb_king_state cb_get_king_state(cb_board *b) {
+	cb_king_state ks;
+	memset(&ks, 0, sizeof(cb_king_state));
+
+	u8 i;
+	u8 count;
+	u8 rq_cnt;
+	u8 bq_cnt;
+	i8 dir;
+	u64 attackers;
+	u64 safe_tmp;
+	u64 my = b->player_pieces[b->turn];
+	u64 opp = b->player_pieces[b->turn ^ 1];
+	u8 off = 6 * b->turn;
+	u8 opp_off = 6 * (b->turn ^ 1);
+	u64 king_sq = b->pieces[CB_KING + off];
+	u8 ksq = __builtin_ctzll(king_sq);
+	u64 pin = 0;
+
+	ks.safe_sq = cb_kings_table[ksq] & ~my;
+	safe_tmp = ks.safe_sq;
+	cb_delete_piece(b, b->turn, CB_KING, king_sq);
+	while (safe_tmp) {
+		u64 tsq = 1ULL << __builtin_ctzll(safe_tmp);
+		if (cb_is_attacked(b, tsq))
+			ks.safe_sq &= ~tsq;
+		safe_tmp &= safe_tmp - 1;
+	}
+	cb_add_piece(b, b->turn, CB_KING, king_sq);
+
+	attackers = 0;
+	if (b->turn == CB_WHITE && (king_sq & ~CB_ROWS[7]))
+		attackers = b->pieces[CB_PAWN] & (((king_sq << 9) & ~CB_COLUMNS[0]) | ((king_sq << 7) & ~CB_COLUMNS[7]));
+	else if (b->turn == CB_BLACK && (king_sq & ~CB_ROWS[0]))
+		attackers = b->pieces[CB_PAWN + 6] & (((king_sq >> 9) & ~CB_COLUMNS[7]) | ((king_sq >> 7) & ~CB_COLUMNS[0]));
+	if (attackers) {
+		ks.checkers = attackers;
+		ks.num_checkers = 1;
+		ks.block_mask = attackers;
+	}
+
+	u64 QR = b->pieces[CB_QUEEN + opp_off] | b->pieces[CB_ROOK + opp_off];
+	u64 QB = b->pieces[CB_QUEEN + opp_off] | b->pieces[CB_BISHOP + opp_off];
+	dir = 0;
+	rq_cnt = 0;
+
+	if (rq_cnt < 2) {
+		attackers = cb_rrays[ksq].east & QR;
+		if (attackers) {
+			count = 0;
+			i = 1;
+			pin = 0;
+			while ((QR & (king_sq << i)) == 0) {
+				if (opp & (king_sq << i))
+					break;
+				if (my & (king_sq << i)) {
+					if (++count == 2)
+						break;
+					pin = king_sq << i;
+				}
+				i++;
+			}
+			if (QR & (king_sq << i)) {
+				if (count == 0) {
+					ks.checkers |= king_sq << i;
+					ks.num_checkers++;
+					dir = 1;
+					rq_cnt++;
+				}
+				else if (count == 1)
+					ks.pinned |= pin;
+			}
+		}
+	}
+
+	if (rq_cnt < 2) {
+		attackers = cb_rrays[ksq].west & QR;
+		if (attackers) {
+			count = 0;
+			i = 1;
+			pin = 0;
+			while ((QR & (king_sq >> i)) == 0) {
+				if (opp & (king_sq >> i))
+					break;
+				if (my & (king_sq >> i)) {
+					if (++count == 2)
+						break;
+					pin = king_sq >> i;
+				}
+				i++;
+			}
+			if (QR & (king_sq >> i)) {
+				if (count == 0) {
+					ks.checkers |= king_sq >> i;
+					ks.num_checkers++;
+					dir = -1;
+					rq_cnt++;
+				}
+				else if (count == 1)
+					ks.pinned |= pin;
+			}
+		}
+	}
+
+	if (rq_cnt < 2) {
+		attackers = cb_rrays[ksq].north & QR;
+		if (attackers) {
+			count = 0;
+			i = 1;
+			pin = 0;
+			while ((QR & (king_sq << 8 * i)) == 0) {
+				if (opp & (king_sq << 8 * i))
+					break;
+				if (my & (king_sq << 8 * i)) {
+					if (++count == 2)
+						break;
+					pin = king_sq << 8 * i;
+				}
+				i++;
+			}
+			if (QR & (king_sq << 8 * i)) {
+				if (count == 0) {
+					ks.checkers |= king_sq << 8 * i;
+					ks.num_checkers++;
+					dir = 8;
+					rq_cnt++;
+				}
+				else if (count == 1)
+					ks.pinned |= pin;
+			}
+		}
+	}
+
+	if (rq_cnt < 2) {
+		attackers = cb_rrays[ksq].south & QR;
+		if (attackers) {
+			count = 0;
+			i = 1;
+			pin = 0;
+			while ((QR & (king_sq >> 8 * i)) == 0) {
+				if (opp & (king_sq >> 8 * i))
+					break;
+				if (my & (king_sq >> 8 * i)) {
+					if (++count == 2)
+						break;
+					pin = king_sq >> 8 * i;
+				}
+				i++;
+			}
+			if (QR & (king_sq >> 8 * i)) {
+				if (count == 0) {
+					ks.checkers |= king_sq >> 8 * i;
+					ks.num_checkers++;
+					dir = -8;
+					rq_cnt++;
+				}
+				else if (count == 1)
+					ks.pinned |= pin;
+			}
+		}
+	}
+
+	bq_cnt = 0;
+
+	attackers = cb_brays[ksq].n_east & QB;
+	if (attackers) {
+		count = 0;
+		i = 1;
+		pin = 0;
+		while ((QB & (king_sq << 9 * i)) == 0) {
+			if (opp & (king_sq << 9 * i))
+				break;
+			if (my & (king_sq << 9 * i)) {
+				if (++count == 2)
+					break;
+				pin = king_sq << 9 * i;
+			}
+			i++;
+		}
+		if (QB & (king_sq << 9 * i)) {
+			if (count == 0) {
+				ks.checkers |= king_sq << 9 * i;
+				ks.num_checkers++;
+				dir = 9;
+				bq_cnt++;
+			}
+			else if (count == 1)
+				ks.pinned |= pin;
+		}
+	}
+
+	if (bq_cnt < 2) {
+		attackers = cb_brays[ksq].n_west & QB;
+		if (attackers) {
+			count = 0;
+			i = 1;
+			pin = 0;
+			while ((QB & (king_sq << 7 * i)) == 0) {
+				if (opp & (king_sq << 7 * i))
+					break;
+				if (my & (king_sq << 7 * i)) {
+					if (++count == 2)
+						break;
+					pin = king_sq << 7 * i;
+				}
+				i++;
+			}
+			if (QB & (king_sq << 7 * i)) {
+				if (count == 0) {
+					ks.checkers |= king_sq << 7 * i;
+					ks.num_checkers++;
+					dir = 7;
+					bq_cnt++;
+				}
+				else if (count == 1)
+					ks.pinned |= pin;
+			}
+		}
+	}
+
+	if (bq_cnt < 2) {
+		attackers = cb_brays[ksq].s_east & QB;
+		if (attackers) {
+			count = 0;
+			i = 1;
+			pin = 0;
+			while ((QB & (king_sq >> 7 * i)) == 0) {
+				if (opp & (king_sq >> 7 * i))
+					break;
+				if (my & (king_sq >> 7 * i)) {
+					if (++count == 2)
+						break;
+					pin = king_sq >> 7 * i;
+				}
+				i++;
+			}
+			if (QB & (king_sq >> 7 * i)) {
+				if (count == 0) {
+					ks.checkers |= king_sq >> 7 * i;
+					ks.num_checkers++;
+					dir = -7;
+					bq_cnt++;
+				}
+				else if (count == 1)
+					ks.pinned |= pin;
+			}
+		}
+	}
+
+	if (bq_cnt < 2) {
+		attackers = cb_brays[ksq].s_west & QB;
+		if (attackers) {
+			count = 0;
+			i = 1;
+			pin = 0;
+			while ((QB & (king_sq >> 9 * i)) == 0) {
+				if (opp & (king_sq >> 9 * i))
+					break;
+				if (my & (king_sq >> 9 * i)) {
+					if (++count == 2)
+						break;
+					pin = king_sq >> 9 * i;
+				}
+				i++;
+			}
+			if (QB & (king_sq >> 9 * i)) {
+				if (count == 0) {
+					ks.checkers |= king_sq >> 9 * i;
+					ks.num_checkers++;
+					dir = -9;
+					bq_cnt++;
+				}
+				else if (count == 1)
+					ks.pinned |= pin;
+			}
+		}
+	}
+
+	attackers = cb_knight_table[ksq] & b->pieces[CB_KNIGHT + opp_off];
+	if (attackers) {
+		ks.num_checkers++;
+		ks.block_mask |= attackers;
+		ks.checkers |= attackers;
+	}
+
+	if (ks.num_checkers == 1) {
+		u64 checker = ks.checkers & -ks.checkers;
+		ks.block_mask = checker;
+		if (dir != 0) {
+			u64 t = king_sq;
+			for (int s = 0; s < 7; s++) {
+				if (dir == 1)
+					t <<= 1;
+				else if (dir == -1)
+					t >>= 1;
+				else if (dir == 8)
+					t <<= 8;
+				else if (dir == -8)
+					t >>= 8;
+				else if (dir == 9)
+					t <<= 9;
+				else if (dir == -9)
+					t >>= 9;
+				else if (dir == 7)
+					t <<= 7;
+				else if (dir == -7)
+					t >>= 7;
+				ks.block_mask |= t;
+				if (t == checker)
+					break;
+			}
+		}
+	}
+	else
+		ks.block_mask = 0;
+
+	return ks;
 }
 
-static cb_bitboard cb_get_pinned(const cb_board *b){
-    cb_bitboard occupied = b -> player_pieces[0] | b -> player_pieces[1];
-    cb_bitboard my_piece = b -> player_pieces[b -> turn];
-    cb_bitboard opp_piece;
-    cb_bitboard king_square = b -> pieces[CB_KING + 6 - 6 * b -> turn];
-    int index = __builtin_ctzll(king_square);
-    cb_bitboard pinned = 0;
-    cb_bitboard temp;
-    cb_bitboard temp2;
-    cb_bitboard blockers;
-    // First rows
-    if ((blockers = occupied & west_table[index])){
-        temp = 1ULL << (63 - __builtin_clzll(blockers));
-        if (my_piece & temp){
-            opp_piece = b -> pieces[CB_ROOK + 6 * b -> turn] | b -> pieces[CB_QUEEN + 6 * b -> turn];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL << (63 - __builtin_clzll(blockers));
-                if (opp_piece & temp2)
-                    pinned |= temp;
-                }
-            }
-        
-            
-    }
-    if ((blockers = occupied & east_table[index])){
-        temp = 1ULL << __builtin_ctzll(blockers);
-        if (my_piece & temp){
-            opp_piece = b -> pieces[CB_ROOK + 6 * b -> turn] | b -> pieces[CB_QUEEN + 6 * b -> turn];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL <<  __builtin_ctzll(blockers);
-                if (opp_piece & temp2)
-                    pinned |= temp;
-            }
+/* -------------------------------------------------------------------------
+ * moves/moves.c
+ * -----------------------------------------------------------------------*/
 
-        }
-            
-    }
-    //Seconde columns
-    if ((blockers = occupied & north_table[index])){
-        temp = 1ULL << __builtin_ctzll(blockers);
-        if (my_piece & temp){
-            opp_piece = b -> pieces[CB_ROOK + 6 * b -> turn] | b -> pieces[CB_QUEEN + 6 * b -> turn];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL <<  __builtin_ctzll(blockers );
-                if (opp_piece & temp2)
-                    pinned |= temp;
-            }
+void cb_make_move(cb_board *b, cb_move m, int rep, cb_unmake_info *info) {
+	u64 src = cb_get_m_bitboard(m, 0);
+	u64 dst = cb_get_m_bitboard(m, 1);
+	u32 flag = cb_get_m_int(m, 3);
 
-        }
-    }
-    if ((blockers = occupied & south_table[index])){
-        temp = 1ULL << (63 - __builtin_clzll(blockers));
-        if (my_piece & temp){
-            opp_piece = b -> pieces[CB_ROOK + 6 * b -> turn] | b -> pieces[CB_QUEEN + 6 * b -> turn];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL <<  (63 - __builtin_clzll(blockers));
-                if (opp_piece & temp2)
-                    pinned |= temp;
-            }
+	if (info) {
+		info->castles = b->castles;
+		info->w_en_passant_flag = b->w_en_passant_flag;
+		info->b_en_passant_flag = b->b_en_passant_flag;
+		info->fifty_moves = b->fifty_moves;
+		info->m = m;
+		info->piece_dst = 255;
+		info->rep_idx = rep ? b->rep->idx_start_looking : 255;
+	}
 
-        }
-    }
-    //Now diagonals
-    //right up
-    if ((blockers = occupied & n_east_table[index])){
-        temp = 1ULL <<  __builtin_ctzll(blockers);
-        if (my_piece & temp){
-            opp_piece = b -> pieces[CB_BISHOP+ 6 * b -> turn] | b -> pieces[CB_QUEEN + 6 * b -> turn];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL << __builtin_ctzll(blockers);
-                if (opp_piece & temp2)
-                    pinned |= temp;
-            }
-        }
-    }
-    //left up
-    if ((blockers = occupied & n_west_table[index])){
-        temp = 1ULL <<  __builtin_ctzll(blockers);
-        if (my_piece & temp){
-            opp_piece = b -> pieces[CB_BISHOP+ 6 * b -> turn] | b -> pieces[CB_QUEEN + 6 * b -> turn];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL << __builtin_ctzll(blockers);
-                if (opp_piece & temp2)
-                    pinned |= temp;
-            }
+	b->fifty_moves++;
+	u64 occ = b->player_pieces[0] | b->player_pieces[1];
+	if (b->turn)
+		b->w_en_passant_flag = -1;
+	else
+		b->b_en_passant_flag = -1;
 
-        }
-    }
-    //right down
-    if ((blockers = occupied & s_east_table[index])){
-        temp = 1ULL << (63 - __builtin_clzll(blockers));
-        if (my_piece & temp){
-            opp_piece = b -> pieces[CB_BISHOP+ 6 * b -> turn] | b -> pieces[CB_QUEEN + 6 * b -> turn];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL << (63 - __builtin_clzll(blockers));
-                if (opp_piece & temp2)
-                    pinned |= temp;
-            }
-        }
-    }
-    //left down
-    if ((blockers = occupied & s_west_table[index])){
-        temp = 1ULL << (63 - __builtin_clzll(blockers));
-        if (my_piece & temp){
-            opp_piece = b -> pieces[CB_BISHOP+ 6 * b -> turn] | b -> pieces[CB_QUEEN + 6 * b -> turn];
-            blockers &= ~temp;
-            if (blockers){
-                temp2 = 1ULL << (63 - __builtin_clzll(blockers));
-                if (opp_piece & temp2)
-                    pinned |= temp;
-            }
-        }
-    }
-    return pinned;
+	u32 i = cb_get_m_int(m, 2);
+	int opp_piece = 7;
+	if (dst & occ) {
+		if (rep)
+			b->rep->idx_start_looking = b->rep->idx;
+		opp_piece = 6 * (b->turn ^ 1);
+		while ((b->pieces[opp_piece] & dst) == 0)
+			opp_piece++;
+		opp_piece -= 6 * (b->turn ^ 1);
+		if (info)
+			info->piece_dst = opp_piece;
+	}
+
+	if (flag >= CB_CASTLE)
+		cb_make_move_castle(b, m, flag, src, dst);
+	else if (flag == CB_EN_PASSANT)
+		cb_make_move_en_passant(b, m, info, src, dst);
+	else if (flag < CB_NO_PROM)
+		cb_make_move_promotion(b, m, info, flag, src, dst, opp_piece);
+	else {
+		if (i == CB_PAWN) {
+			if (rep)
+				b->rep->idx_start_looking = b->rep->idx;
+			if ((src & CB_ROWS[(b->turn ^ 1) * 5 + 1]) && (dst & CB_ROWS[(b->turn ^ 1) * 1 + 3])) {
+				if (b->turn)
+					b->w_en_passant_flag = cb_get_column(src);
+				else
+					b->b_en_passant_flag = cb_get_column(src);
+			}
+		}
+		if (i == CB_KING)
+			b->castles &= ~(3 + (b->turn ^ 1) * 9);
+		cb_delete_piece(b, b->turn, i, src);
+		cb_add_piece(b, b->turn, i, dst);
+		if (dst & occ)
+			cb_delete_piece(b, b->turn ^ 1, opp_piece, dst);
+	}
+
+	if (i == CB_ROOK && b->turn) {
+		if (src == 1ULL)
+			b->castles &= ~2;
+		if (src == (1ULL << 7))
+			b->castles &= ~1;
+	}
+	if (i == CB_ROOK && (b->turn ^ 1)) {
+		if (src == (1ULL << 56))
+			b->castles &= ~8;
+		if (src == (1ULL << 63))
+			b->castles &= ~4;
+	}
+	if ((dst & occ) && opp_piece == CB_ROOK && (b->turn ^ 1)) {
+		if (dst == 1ULL)
+			b->castles &= ~2;
+		if (dst == (1ULL << 7))
+			b->castles &= ~1;
+	}
+	if ((dst & occ) && opp_piece == CB_ROOK && b->turn) {
+		if (dst == (1ULL << 56))
+			b->castles &= ~8;
+		if (dst == (1ULL << 63))
+			b->castles &= ~4;
+	}
+
+	b->turn ^= 1;
+	if (rep) {
+		b->rep->rep_table[b->rep->idx] = cb_zobrist_key(b);
+		b->rep->idx = (b->rep->idx >= 149) ? 0 : b->rep->idx + 1;
+	}
 }
 
- int cb_is_repetition(const cb_board *b){
-    //Saying if the last cb_move caused draw
-    int last = (b -> rep->idx == 0) ? 149 : (b -> rep -> idx - 1);
-    cb_bitboard last_move = (b -> rep) -> rep_table[last];
-    int i = (b -> rep) -> idx_start_looking;
-    int count = 1;
-    do{
-        if (i == 150)
-            i = 0;
-        if((b -> rep) -> rep_table[i] == last_move)
-            count++;
-        i++;
-    }while(i != (last) && count < 3);
-    return count == 3;
+void cb_unmake(cb_board *b, cb_unmake_info *info) {
+	u64 src = cb_get_m_bitboard(info->m, 0);
+	u64 dst = cb_get_m_bitboard(info->m, 1);
+	u32 piece_src = cb_get_m_int(info->m, 2);
+	u32 flag = cb_get_m_int(info->m, 3);
+
+	if (flag == CB_CASTLE) {
+		cb_add_piece(b, b->turn ^ 1, CB_ROOK, b->pieces[CB_KING + 6 * (b->turn ^ 1)] << 1);
+		cb_delete_piece(b, b->turn ^ 1, CB_ROOK, b->pieces[CB_KING + 6 * (b->turn ^ 1)] >> 1);
+	}
+	else if (flag == CB_LONG_CASTLE) {
+		cb_add_piece(b, b->turn ^ 1, CB_ROOK, b->pieces[CB_KING + 6 * (b->turn ^ 1)] >> 2);
+		cb_delete_piece(b, b->turn ^ 1, CB_ROOK, b->pieces[CB_KING + 6 * (b->turn ^ 1)] << 1);
+	}
+
+	cb_add_piece(b, b->turn ^ 1, piece_src, src);
+	if (flag > 3)
+		cb_delete_piece(b, b->turn ^ 1, piece_src, dst);
+	else
+		cb_delete_piece(b, b->turn ^ 1, flag, dst);
+
+	if (info->piece_dst != 255 && flag != CB_EN_PASSANT)
+		cb_add_piece(b, b->turn, info->piece_dst, dst);
+	if (flag == CB_EN_PASSANT) {
+		if (b->turn == CB_WHITE)
+			cb_add_piece(b, b->turn, CB_PAWN, dst << 8);
+		else
+			cb_add_piece(b, b->turn, CB_PAWN, dst >> 8);
+	}
+
+	b->castles = info->castles;
+	b->w_en_passant_flag = info->w_en_passant_flag;
+	b->b_en_passant_flag = info->b_en_passant_flag;
+	b->fifty_moves = info->fifty_moves;
+	if (info->rep_idx != 255) {
+		b->rep->idx = (b->rep->idx == 0) ? 149 : b->rep->idx - 1;
+		b->rep->idx_start_looking = info->rep_idx;
+	}
+	b->fifty_moves--;
+	b->turn ^= 1;
 }
 
+/* -------------------------------------------------------------------------
+ * pieces/rook.c
+ * -----------------------------------------------------------------------*/
 
- int cb_insufficient_material(const cb_board *b){
-    int w = __builtin_popcountll(b -> player_pieces[0]);
-    int bl = __builtin_popcountll(b -> player_pieces[1]);
+void cb_rook_moves(const cb_board *b, u32 sq_idx, cb_list_move *l, u32 piece) {
+	u64 occ = b->player_pieces[CB_BLACK] | b->player_pieces[CB_WHITE];
+	u64 opps = b->player_pieces[b->turn ^ 1];
+	u64 north = cb_rrays[sq_idx].north;
+	u64 south = cb_rrays[sq_idx].south;
+	u64 east = cb_rrays[sq_idx].east;
+	u64 west = cb_rrays[sq_idx].west;
 
-    // K vs K
-    if (w == 1 && bl == 1) 
-        return 1;
+	if (north & occ)
+		north = _bzhi_u64(north, __builtin_ctzll(north & occ) + 1);
+	if (east & occ)
+		east = _bzhi_u64(east, __builtin_ctzll(east & occ) + 1);
+	if (south & occ)
+		south = cb_bzlo_u64(south, 63 - __builtin_clzll(south & occ));
+	if (west & occ)
+		west = cb_bzlo_u64(west, 63 - __builtin_clzll(west & occ));
 
-    // K+(bishop or knight) vs K
-    if (w == 2 && bl == 1 && (b -> pieces[CB_BISHOP] || b -> pieces[CB_KNIGHT])) 
-        return 1;
-    if (bl == 2 && w == 1 && (b -> pieces[CB_BISHOP + 6] || b -> pieces[CB_KNIGHT + 6]))
-         return 1;
+	u64 all = north | east | south | west;
+	u64 cpy = all & ~occ;
+	int tz;
 
-    // K+(bishop or knight) vs K+(bishop or knight)
-    if (w == 2 && bl == 2 &&
-        (b->pieces[CB_BISHOP] || b->pieces[CB_KNIGHT]) &&
-        (b->pieces[CB_BISHOP + 6] || b->pieces[CB_KNIGHT + 6])) 
-        return 1;
-    return 0;
+	while (cpy) {
+		tz = __builtin_ctzll(cpy);
+		l->m[l->index++] = cb_create_move(sq_idx, tz, piece, CB_NO_PROM);
+		cpy &= cpy - 1;
+	}
+
+	cpy = all & opps;
+	int ind;
+	while (cpy) {
+		tz = __builtin_ctzll(cpy);
+		ind = 6 * (b->turn == CB_BLACK);
+		while ((b->pieces[ind] & (1ULL << tz)) == 0)
+			ind++;
+		ind -= 6 * (b->turn == CB_BLACK);
+
+		switch (ind) {
+			case CB_ROOK:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, piece, CB_CAPTURES_ROOK);
+				break;
+			case CB_BISHOP:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, piece, CB_CAPTURES_BISHOP);
+				break;
+			case CB_QUEEN:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, piece, CB_CAPTURES_QUEEN);
+				break;
+			case CB_PAWN:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, piece, CB_CAPTURES_PAWN);
+				break;
+			case CB_KNIGHT:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, piece, CB_CAPTURES_KNIGHT);
+				break;
+		}
+		cpy &= cpy - 1;
+	}
 }
 
- int cb_is_checkmate(cb_board *b){
-    cb_list_move l;
-    cb_legal_moves(b , &l);
-    if (l.size == 0){
-        if (cb_is_check(b))
-            return 1;
-    }
-    return 0;
+/* -------------------------------------------------------------------------
+ * pieces/bishop.c
+ * -----------------------------------------------------------------------*/
+
+void cb_bishop_moves(const cb_board *b, u32 sq_idx, cb_list_move *l, u32 piece) {
+	u64 occ = b->player_pieces[CB_BLACK] | b->player_pieces[CB_WHITE];
+	u64 opps = b->player_pieces[b->turn ^ 1];
+	u64 ne = cb_brays[sq_idx].n_east;
+	u64 nw = cb_brays[sq_idx].n_west;
+	u64 se = cb_brays[sq_idx].s_east;
+	u64 sw = cb_brays[sq_idx].s_west;
+
+	if (ne & occ)
+		ne = _bzhi_u64(ne, __builtin_ctzll(ne & occ) + 1);
+	if (nw & occ)
+		nw = _bzhi_u64(nw, __builtin_ctzll(nw & occ) + 1);
+	if (se & occ)
+		se = cb_bzlo_u64(se, 63 - __builtin_clzll(se & occ));
+	if (sw & occ)
+		sw = cb_bzlo_u64(sw, 63 - __builtin_clzll(sw & occ));
+
+	u64 all = ne | nw | se | sw;
+	u64 cpy = all & ~occ;
+	int tz;
+
+	while (cpy) {
+		tz = __builtin_ctzll(cpy);
+		l->m[l->index++] = cb_create_move(sq_idx, tz, piece, CB_NO_PROM);
+		cpy &= cpy - 1;
+	}
+
+	cpy = all & opps;
+	int ind;
+	while (cpy) {
+		tz = __builtin_ctzll(cpy);
+		ind = 6 * (b->turn ^ 1);
+		while ((b->pieces[ind] & (1ULL << tz)) == 0)
+			ind++;
+		ind -= 6 * (b->turn == CB_BLACK);
+
+		switch (ind) {
+			case CB_ROOK:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, piece, CB_CAPTURES_ROOK);
+				break;
+			case CB_BISHOP:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, piece, CB_CAPTURES_BISHOP);
+				break;
+			case CB_QUEEN:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, piece, CB_CAPTURES_QUEEN);
+				break;
+			case CB_PAWN:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, piece, CB_CAPTURES_PAWN);
+				break;
+			case CB_KNIGHT:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, piece, CB_CAPTURES_KNIGHT);
+				break;
+		}
+		cpy &= cpy - 1;
+	}
 }
 
- int  cb_is_draw(cb_board *b){
-    if (b->fifty_moves >= 150)
-        return 1;
-    if (cb_is_repetition(b))
-        return 1;
-    if (cb_insufficient_material(b))
-        return 1;
-    cb_list_move l;
-    cb_legal_moves(b , &l);
-    if (l.size == 0){
-        if (cb_is_check(b))
-            return 0;
-        return 1;
-    }
-    return 0;
+/* -------------------------------------------------------------------------
+ * pieces/queen.c
+ * -----------------------------------------------------------------------*/
+
+void cb_queen_moves(const cb_board *b, u32 sq_idx, cb_list_move *l) {
+	cb_rook_moves(b, sq_idx, l, CB_QUEEN);
+	cb_bishop_moves(b, sq_idx, l, CB_QUEEN);
 }
 
- int cb_game_state(cb_board *b){
-    /*0 for draw and 1 for win, 2 for nothing */
-    if (b->fifty_moves >= 150)
-        return 0;
-    cb_list_move l;
-    cb_legal_moves(b, &l);
-    if (l.size == 0){
-        if (cb_is_check(b))
-            return 1;
-        return 0;
-    }
-    if (cb_is_repetition(b))
-        return 0;
-    if (cb_insufficient_material(b))
-        return 0;
-    return 2;
+/* -------------------------------------------------------------------------
+ * pieces/knight.c
+ * -----------------------------------------------------------------------*/
+
+void cb_knight_moves(const cb_board *b, u32 sq_idx, cb_list_move *l) {
+	u64 opps = b->player_pieces[b->turn ^ 1];
+	u64 occ = b->player_pieces[CB_WHITE] | b->player_pieces[CB_BLACK];
+	u64 moves = cb_knight_table[sq_idx] & ~occ;
+	u64 caps = cb_knight_table[sq_idx] & opps;
+	int tz;
+
+	while (moves) {
+		tz = __builtin_ctzll(moves);
+		l->m[l->index++] = cb_create_move(sq_idx, tz, CB_KNIGHT, CB_NO_PROM);
+		moves &= moves - 1;
+	}
+
+	int ind;
+	while (caps) {
+		tz = __builtin_ctzll(caps);
+		ind = 6 * (b->turn == CB_BLACK);
+		while ((b->pieces[ind] & (1ULL << tz)) == 0)
+			ind++;
+		ind -= 6 * (b->turn == CB_BLACK);
+
+		switch (ind) {
+			case CB_ROOK:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, CB_KNIGHT, CB_CAPTURES_ROOK);
+				break;
+			case CB_BISHOP:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, CB_KNIGHT, CB_CAPTURES_BISHOP);
+				break;
+			case CB_QUEEN:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, CB_KNIGHT, CB_CAPTURES_QUEEN);
+				break;
+			case CB_PAWN:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, CB_KNIGHT, CB_CAPTURES_PAWN);
+				break;
+			case CB_KNIGHT:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, CB_KNIGHT, CB_CAPTURES_KNIGHT);
+				break;
+		}
+		caps &= caps - 1;
+	}
 }
 
+/* -------------------------------------------------------------------------
+ * pieces/king.c
+ * -----------------------------------------------------------------------*/
 
- cb_bitboard cb_zobrist_key(const cb_board *b){
-    cb_bitboard hash = 0;
-    int trailling_zeros;
-    cb_bitboard copy_board;
-    for (int piece = 0; piece < 12; piece++){
-        copy_board = b -> pieces[piece];
-        while (copy_board > 0){
-            trailling_zeros = __builtin_ctzll(copy_board);
-            hash ^= pos_table[piece][trailling_zeros];
-            
-            copy_board &= ~(1ULL << trailling_zeros);
-        }
-            
-    }
-    if (b -> castles & 1)
-        hash ^= k;
-    if (b -> castles & 2) 
-        hash ^= q;
-    if (b -> castles & 4)
-        hash ^= K;
-    if (b -> castles & 8)
-        hash ^= Q;
-    if (b -> w_en_passant_flag >= 0)
-        hash ^= en_passant_table[b -> w_en_passant_flag];
-    if (b -> b_en_passant_flag >= 0)
-        hash ^= en_passant_table[b -> b_en_passant_flag];
-    if (b -> turn == CB_WHITE)
-        hash ^= turn_table;
+void cb_king_moves(const cb_board *b, cb_list_move *l) {
+	u32 sq_idx = __builtin_ctzll(b->pieces[CB_KING + b->turn * 6]);
+	u64 occ = b->player_pieces[CB_WHITE] | b->player_pieces[CB_BLACK];
+	u64 opps = b->player_pieces[b->turn ^ 1];
+	u64 moves = cb_kings_table[sq_idx] & ~occ;
+	int tz;
 
-    return hash;
+	while (moves) {
+		tz = __builtin_ctzll(moves);
+		l->m[l->index++] = cb_create_move(sq_idx, tz, CB_KING, CB_NO_PROM);
+		moves &= moves - 1;
+	}
+
+	u64 caps = cb_kings_table[sq_idx] & opps;
+	int ind;
+	while (caps) {
+		tz = __builtin_ctzll(caps);
+		ind = 6 * (b->turn == CB_BLACK);
+		while ((b->pieces[ind] & (1ULL << tz)) == 0)
+			ind++;
+		ind -= 6 * (b->turn == CB_BLACK);
+
+		switch (ind) {
+			case CB_ROOK:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, CB_KING, CB_CAPTURES_ROOK);
+				break;
+			case CB_BISHOP:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, CB_KING, CB_CAPTURES_BISHOP);
+				break;
+			case CB_QUEEN:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, CB_KING, CB_CAPTURES_QUEEN);
+				break;
+			case CB_PAWN:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, CB_KING, CB_CAPTURES_PAWN);
+				break;
+			case CB_KNIGHT:
+				l->m[l->index++] = cb_create_move(sq_idx, tz, CB_KING, CB_CAPTURES_KNIGHT);
+				break;
+		}
+		caps &= caps - 1;
+	}
+
+	if (b->turn == CB_WHITE) {
+		if ((b->castles & 1) && (~occ & 32) && (~occ & 64))
+			l->m[l->index++] = cb_create_move(sq_idx, 6, CB_KING, CB_CASTLE);
+		if ((b->castles & 2) && (~occ & 8) && (~occ & 4) && (~occ & 2))
+			l->m[l->index++] = cb_create_move(sq_idx, 2, CB_KING, CB_LONG_CASTLE);
+	}
+	else {
+		if ((b->castles & 4) && (~occ & (1ULL << 61)) && (~occ & (1ULL << 62)))
+			l->m[l->index++] = cb_create_move(sq_idx, 62, CB_KING, CB_CASTLE);
+		if ((b->castles & 8) && (~occ & (1ULL << 59)) && (~occ & (1ULL << 58)) && (~occ & (1ULL << 57)))
+			l->m[l->index++] = cb_create_move(sq_idx, 58, CB_KING, CB_LONG_CASTLE);
+	}
 }
 
-#endif
+/* -------------------------------------------------------------------------
+ * pieces/pawn.c
+ * -----------------------------------------------------------------------*/
 
-#ifdef __cplusplus
-} 
-#endif
+void cb_pawn_all_moves(const cb_board *b, cb_list_move *l) {
+	u64 not_occ = ~(b->player_pieces[0] | b->player_pieces[1]);
+	u64 no_prom = b->pieces[CB_PAWN + 6 * b->turn] & ~CB_ROWS[6 - 5 * (b->turn ^ 1)];
+	u64 prom_pawns = b->pieces[CB_PAWN + 6 * b->turn] & CB_ROWS[6 - 5 * (b->turn ^ 1)];
+	u64 opps = b->player_pieces[b->turn ^ 1];
+	u64 all = 0;
+	int tz;
+	int ind;
 
-#endif
+#define CAP_PIECE_IND(turn_val) \
+	ind = 6 * (b->turn == CB_BLACK); \
+	while ((b->pieces[ind] & (1ULL << tz)) == 0) \
+		ind++; \
+	ind -= 6 * (b->turn == CB_BLACK);
 
+	if (b->turn == CB_WHITE) {
+		all = (no_prom << 8) & not_occ;
+		u64 dbl = ((all & CB_ROWS[2]) << 8) & not_occ;
+		while (all) {
+			tz = cb_pop_inplace(&all);
+			l->m[l->index++] = cb_create_move(tz - 8, tz, CB_PAWN, CB_NO_PROM);
+		}
+		while (dbl) {
+			tz = cb_pop_inplace(&dbl);
+			l->m[l->index++] = cb_create_move(tz - 16, tz, CB_PAWN, CB_NO_PROM);
+		}
+
+		all = ((no_prom & ~CB_COLUMNS[7]) << 9) & opps;
+		while (all) {
+			tz = cb_pop_inplace(&all);
+			CAP_PIECE_IND(CB_BLACK);
+			switch (ind) {
+				case CB_ROOK:
+					l->m[l->index++] = cb_create_move(tz - 9, tz, CB_PAWN, CB_CAPTURES_ROOK);
+					break;
+				case CB_BISHOP:
+					l->m[l->index++] = cb_create_move(tz - 9, tz, CB_PAWN, CB_CAPTURES_BISHOP);
+					break;
+				case CB_QUEEN:
+					l->m[l->index++] = cb_create_move(tz - 9, tz, CB_PAWN, CB_CAPTURES_QUEEN);
+					break;
+				case CB_PAWN:
+					l->m[l->index++] = cb_create_move(tz - 9, tz, CB_PAWN, CB_CAPTURES_PAWN);
+					break;
+				case CB_KNIGHT:
+					l->m[l->index++] = cb_create_move(tz - 9, tz, CB_PAWN, CB_CAPTURES_KNIGHT);
+					break;
+			}
+		}
+
+		all = ((no_prom & ~CB_COLUMNS[0]) << 7) & opps;
+		while (all) {
+			tz = cb_pop_inplace(&all);
+			CAP_PIECE_IND(CB_BLACK);
+			switch (ind) {
+				case CB_ROOK:
+					l->m[l->index++] = cb_create_move(tz - 7, tz, CB_PAWN, CB_CAPTURES_ROOK);
+					break;
+				case CB_BISHOP:
+					l->m[l->index++] = cb_create_move(tz - 7, tz, CB_PAWN, CB_CAPTURES_BISHOP);
+					break;
+				case CB_QUEEN:
+					l->m[l->index++] = cb_create_move(tz - 7, tz, CB_PAWN, CB_CAPTURES_QUEEN);
+					break;
+				case CB_PAWN:
+					l->m[l->index++] = cb_create_move(tz - 7, tz, CB_PAWN, CB_CAPTURES_PAWN);
+					break;
+				case CB_KNIGHT:
+					l->m[l->index++] = cb_create_move(tz - 7, tz, CB_PAWN, CB_CAPTURES_KNIGHT);
+					break;
+			}
+		}
+
+		if (prom_pawns) {
+			all = (prom_pawns << 8) & not_occ;
+			while (all) {
+				tz = cb_pop_inplace(&all);
+				l->m[l->index++] = cb_create_move(tz - 8, tz, CB_PAWN, CB_QUEEN);
+				l->m[l->index++] = cb_create_move(tz - 8, tz, CB_PAWN, CB_ROOK);
+				l->m[l->index++] = cb_create_move(tz - 8, tz, CB_PAWN, CB_BISHOP);
+				l->m[l->index++] = cb_create_move(tz - 8, tz, CB_PAWN, CB_KNIGHT);
+			}
+			all = ((prom_pawns & ~CB_COLUMNS[7]) << 9) & opps;
+			while (all) {
+				tz = cb_pop_inplace(&all);
+				l->m[l->index++] = cb_create_move(tz - 9, tz, CB_PAWN, CB_QUEEN);
+				l->m[l->index++] = cb_create_move(tz - 9, tz, CB_PAWN, CB_ROOK);
+				l->m[l->index++] = cb_create_move(tz - 9, tz, CB_PAWN, CB_BISHOP);
+				l->m[l->index++] = cb_create_move(tz - 9, tz, CB_PAWN, CB_KNIGHT);
+			}
+			all = ((prom_pawns & ~CB_COLUMNS[0]) << 7) & opps;
+			while (all) {
+				tz = cb_pop_inplace(&all);
+				l->m[l->index++] = cb_create_move(tz - 7, tz, CB_PAWN, CB_QUEEN);
+				l->m[l->index++] = cb_create_move(tz - 7, tz, CB_PAWN, CB_ROOK);
+				l->m[l->index++] = cb_create_move(tz - 7, tz, CB_PAWN, CB_BISHOP);
+				l->m[l->index++] = cb_create_move(tz - 7, tz, CB_PAWN, CB_KNIGHT);
+			}
+		}
+
+		if (b->b_en_passant_flag != -1) {
+			int sidx = 32 + b->b_en_passant_flag;
+			u64 sq = 1ULL << sidx;
+			if (no_prom & CB_ROWS[4] & (sq << 1))
+				l->m[l->index++] = cb_create_move(sidx + 1, sidx + 8, CB_PAWN, CB_EN_PASSANT);
+			if (no_prom & CB_ROWS[4] & (sq >> 1))
+				l->m[l->index++] = cb_create_move(sidx - 1, sidx + 8, CB_PAWN, CB_EN_PASSANT);
+		}
+	}
+	else {
+		all = (no_prom >> 8) & not_occ;
+		u64 dbl = ((all & CB_ROWS[5]) >> 8) & not_occ;
+		while (all) {
+			tz = cb_pop_inplace(&all);
+			l->m[l->index++] = cb_create_move(tz + 8, tz, CB_PAWN, CB_NO_PROM);
+		}
+		while (dbl) {
+			tz = cb_pop_inplace(&dbl);
+			l->m[l->index++] = cb_create_move(tz + 16, tz, CB_PAWN, CB_NO_PROM);
+		}
+
+		all = ((no_prom & ~CB_COLUMNS[0]) >> 9) & opps;
+		while (all) {
+			tz = cb_pop_inplace(&all);
+			CAP_PIECE_IND(CB_WHITE);
+			switch (ind) {
+				case CB_ROOK:
+					l->m[l->index++] = cb_create_move(tz + 9, tz, CB_PAWN, CB_CAPTURES_ROOK);
+					break;
+				case CB_BISHOP:
+					l->m[l->index++] = cb_create_move(tz + 9, tz, CB_PAWN, CB_CAPTURES_BISHOP);
+					break;
+				case CB_QUEEN:
+					l->m[l->index++] = cb_create_move(tz + 9, tz, CB_PAWN, CB_CAPTURES_QUEEN);
+					break;
+				case CB_PAWN:
+					l->m[l->index++] = cb_create_move(tz + 9, tz, CB_PAWN, CB_CAPTURES_PAWN);
+					break;
+				case CB_KNIGHT:
+					l->m[l->index++] = cb_create_move(tz + 9, tz, CB_PAWN, CB_CAPTURES_KNIGHT);
+					break;
+			}
+		}
+
+		all = ((no_prom & ~CB_COLUMNS[7]) >> 7) & opps;
+		while (all) {
+			tz = cb_pop_inplace(&all);
+			CAP_PIECE_IND(CB_WHITE);
+			switch (ind) {
+				case CB_ROOK:
+					l->m[l->index++] = cb_create_move(tz + 7, tz, CB_PAWN, CB_CAPTURES_ROOK);
+					break;
+				case CB_BISHOP:
+					l->m[l->index++] = cb_create_move(tz + 7, tz, CB_PAWN, CB_CAPTURES_BISHOP);
+					break;
+				case CB_QUEEN:
+					l->m[l->index++] = cb_create_move(tz + 7, tz, CB_PAWN, CB_CAPTURES_QUEEN);
+					break;
+				case CB_PAWN:
+					l->m[l->index++] = cb_create_move(tz + 7, tz, CB_PAWN, CB_CAPTURES_PAWN);
+					break;
+				case CB_KNIGHT:
+					l->m[l->index++] = cb_create_move(tz + 7, tz, CB_PAWN, CB_CAPTURES_KNIGHT);
+					break;
+			}
+		}
+
+		if (prom_pawns) {
+			all = (prom_pawns >> 8) & not_occ;
+			while (all) {
+				tz = cb_pop_inplace(&all);
+				l->m[l->index++] = cb_create_move(tz + 8, tz, CB_PAWN, CB_QUEEN);
+				l->m[l->index++] = cb_create_move(tz + 8, tz, CB_PAWN, CB_ROOK);
+				l->m[l->index++] = cb_create_move(tz + 8, tz, CB_PAWN, CB_BISHOP);
+				l->m[l->index++] = cb_create_move(tz + 8, tz, CB_PAWN, CB_KNIGHT);
+			}
+			all = ((prom_pawns & ~CB_COLUMNS[0]) >> 9) & opps;
+			while (all) {
+				tz = cb_pop_inplace(&all);
+				l->m[l->index++] = cb_create_move(tz + 9, tz, CB_PAWN, CB_QUEEN);
+				l->m[l->index++] = cb_create_move(tz + 9, tz, CB_PAWN, CB_ROOK);
+				l->m[l->index++] = cb_create_move(tz + 9, tz, CB_PAWN, CB_BISHOP);
+				l->m[l->index++] = cb_create_move(tz + 9, tz, CB_PAWN, CB_KNIGHT);
+			}
+			all = ((prom_pawns & ~CB_COLUMNS[7]) >> 7) & opps;
+			while (all) {
+				tz = cb_pop_inplace(&all);
+				l->m[l->index++] = cb_create_move(tz + 7, tz, CB_PAWN, CB_QUEEN);
+				l->m[l->index++] = cb_create_move(tz + 7, tz, CB_PAWN, CB_ROOK);
+				l->m[l->index++] = cb_create_move(tz + 7, tz, CB_PAWN, CB_BISHOP);
+				l->m[l->index++] = cb_create_move(tz + 7, tz, CB_PAWN, CB_KNIGHT);
+			}
+		}
+
+		if (b->w_en_passant_flag != -1) {
+			int sidx = 24 + b->w_en_passant_flag;
+			u64 sq = 1ULL << sidx;
+			if (no_prom & CB_ROWS[3] & (sq << 1))
+				l->m[l->index++] = cb_create_move(sidx + 1, sidx - 8, CB_PAWN, CB_EN_PASSANT);
+			if (no_prom & CB_ROWS[3] & (sq >> 1))
+				l->m[l->index++] = cb_create_move(sidx - 1, sidx - 8, CB_PAWN, CB_EN_PASSANT);
+		}
+	}
+#undef CAP_PIECE_IND
+}
+
+/* -------------------------------------------------------------------------
+ * zobrist.c
+ * -----------------------------------------------------------------------*/
+
+u64 cb_pos_table[12][64];
+u64 cb_zob_k, cb_zob_q, cb_zob_K, cb_zob_Q;
+u64 cb_en_passant_table[8];
+u64 cb_turn_table;
+
+void cb_init_zobrist_tables() {
+	u64 s = CB_ZOBRIST_SEED;
+
+	for (int i = 0; i < 12; i++)
+		for (int j = 0; j < 64; j++)
+			cb_pos_table[i][j] = cb_splitmix64(&s);
+
+	cb_zob_k = cb_splitmix64(&s);
+	cb_zob_q = cb_splitmix64(&s);
+	cb_zob_K = cb_splitmix64(&s);
+	cb_zob_Q = cb_splitmix64(&s);
+
+	for (int i = 0; i < 8; i++)
+		cb_en_passant_table[i] = cb_splitmix64(&s);
+
+	cb_turn_table = cb_splitmix64(&s);
+}
+
+u64 cb_zobrist_key(const cb_board *b) {
+	u64 hash = 0;
+
+	for (int piece = 0; piece < 12; piece++) {
+		u64 copy = b->pieces[piece];
+		while (copy > 0) {
+			int tz = __builtin_ctzll(copy);
+			hash ^= cb_pos_table[piece][tz];
+			copy &= ~(1ULL << tz);
+		}
+	}
+
+	if (b->castles & 1)
+		hash ^= cb_zob_k;
+	if (b->castles & 2)
+		hash ^= cb_zob_q;
+	if (b->castles & 4)
+		hash ^= cb_zob_K;
+	if (b->castles & 8)
+		hash ^= cb_zob_Q;
+	if (b->w_en_passant_flag >= 0)
+		hash ^= cb_en_passant_table[b->w_en_passant_flag];
+	if (b->b_en_passant_flag >= 0)
+		hash ^= cb_en_passant_table[b->b_en_passant_flag];
+	if (b->turn == CB_WHITE)
+		hash ^= cb_turn_table;
+
+	return hash;
+}
+
+/* -------------------------------------------------------------------------
+ * utils.c
+ * -----------------------------------------------------------------------*/
+
+static int is_digit(char c) {
+	return (c >= '0' && c <= '9') ? c - '0' : -1;
+}
+
+void cb_init_board(cb_board *b, cb_rep_struct *r) {
+	memset(b, 0, sizeof(*b));
+	b->turn = CB_WHITE;
+	b->pieces[6] = 0x81ULL;
+	b->pieces[7] = 0x42ULL;
+	b->pieces[8] = 0x24ULL;
+	b->pieces[9] = 0x08ULL;
+	b->pieces[10] = 0x10ULL;
+	b->pieces[11] = CB_ROWS[1];
+
+	for (int i = 0; i < 5; i++)
+		b->pieces[i] = b->pieces[i + 6] << 56;
+
+	b->pieces[5] = CB_ROWS[6];
+	b->castles = 15;
+	b->w_en_passant_flag = -1;
+	b->b_en_passant_flag = -1;
+
+	for (int i = 0; i < 6; i++)
+		b->player_pieces[CB_BLACK] |= b->pieces[i];
+	for (int i = 6; i < 12; i++)
+		b->player_pieces[CB_WHITE] |= b->pieces[i];
+
+	b->rep = r;
+	b->rep->idx = 1;
+	b->rep->idx_start_looking = 149;
+	memset(b->rep->rep_table, 0, sizeof(u64) * 150);
+
+	cb_board cpy = *b;
+	b->rep->rep_table[0] = cb_zobrist_key(&cpy);
+}
+
+char *cb_bitboard_to_board(cb_board *b) {
+	char *new_board = malloc(65 * sizeof(char));
+	if (!new_board)
+		return NULL;
+
+	for (int i = 0; i < 64; i++)
+		new_board[i] = '.';
+
+	u64 occ = b->player_pieces[0] | b->player_pieces[1];
+	for (int i = 0; i < 64; i++) {
+		if (!(occ & (1ULL << i)))
+			continue;
+		if (b->pieces[0] & (1ULL << i))
+			new_board[i] = 'r';
+		else if (b->pieces[6] & (1ULL << i))
+			new_board[i] = 'R';
+		else if (b->pieces[1] & (1ULL << i))
+			new_board[i] = 'n';
+		else if (b->pieces[7] & (1ULL << i))
+			new_board[i] = 'N';
+		else if (b->pieces[2] & (1ULL << i))
+			new_board[i] = 'b';
+		else if (b->pieces[8] & (1ULL << i))
+			new_board[i] = 'B';
+		else if (b->pieces[3] & (1ULL << i))
+			new_board[i] = 'q';
+		else if (b->pieces[9] & (1ULL << i))
+			new_board[i] = 'Q';
+		else if (b->pieces[4] & (1ULL << i))
+			new_board[i] = 'k';
+		else if (b->pieces[10] & (1ULL << i))
+			new_board[i] = 'K';
+		else if (b->pieces[5] & (1ULL << i))
+			new_board[i] = 'p';
+		else if (b->pieces[11] & (1ULL << i))
+			new_board[i] = 'P';
+	}
+
+	new_board[64] = '\0';
+	return new_board;
+}
+
+void cb_print_board(cb_board *b) {
+	char *board = cb_bitboard_to_board(b);
+
+	for (int i = 7; i >= 0; i--) {
+		for (int j = 0; j < 8; j++)
+			printf("\t%c\t|", board[i * 8 + j]);
+		printf("\n__________________________________________________________________________________________________________________________________\n");
+	}
+	free(board);
+}
+
+u64 cb_string_to_bitboard(char *s) {
+	return 1ULL << ((s[1] - '1') * 8 + (s[0] - 'a'));
+}
+
+char *cb_bitboard_to_string(u64 square) {
+	char *tab = malloc(3);
+	u64 cpy = square;
+	int row = 0;
+
+	while ((cpy >>= 8))
+		row++;
+
+	u64 mask = CB_ROWS[row];
+	cpy = square;
+	int col = 0;
+	while ((mask & (cpy >> 1))) {
+		cpy >>= 1;
+		col++;
+	}
+
+	tab[0] = (char)('a' + col);
+	tab[1] = (char)('1' + row);
+	tab[2] = '\0';
+	return tab;
+}
+
+void cb_print_bitboard_tab(u64 *tab) {
+	if (!tab)
+		return;
+
+	for (int i = 0; tab[i]; i++)
+		printf("%d : %s\n", i, cb_bitboard_to_string(tab[i]));
+}
+
+long cb_get_time_ms() {
+	return clock() * 1000 / CLOCKS_PER_SEC;
+}
+
+long long cb_get_real_time_ms() {
+	struct timespec ts;
+	clock_gettime(CLOCK_MONOTONIC, &ts);
+	return (long long)ts.tv_sec * 1000LL + ts.tv_nsec / 1000000LL;
+}
+
+void cb_print_moves(cb_list_move *l) {
+	for (int i = 0; i < l->size; i++) {
+		int row = cb_get_row(cb_get_m_bitboard(l->m[i], 0));
+		int col = cb_get_column(cb_get_m_bitboard(l->m[i], 0));
+		printf("%c%c\t", (char)('a' + col), (char)('1' + row));
+		row = cb_get_row(cb_get_m_bitboard(l->m[i], 1));
+		col = cb_get_column(cb_get_m_bitboard(l->m[i], 1));
+		printf("%c%c\n", (char)('a' + col), (char)('1' + row));
+	}
+	printf("size %d\n", l->size);
+}
+
+long cb_perft(cb_board *b, int depth) {
+	if (depth == 0)
+		return 1;
+
+	cb_list_move l;
+	cb_legal_moves(b, &l);
+	if (depth == 1)
+		return l.size;
+
+	long nodes = 0;
+	cb_unmake_info info;
+	for (int i = 0; i < l.size; i++) {
+		cb_make_move(b, l.m[i], 0, &info);
+		nodes += cb_perft(b, depth - 1);
+		cb_unmake(b, &info);
+	}
+	return nodes;
+}
+
+void cb_perft_divide(cb_board *b, int depth, int nb_threads) {
+	if (depth == 0)
+		return;
+
+	cb_list_move l;
+	cb_legal_moves(b, &l);
+	if (l.size == 0) {
+		printf("\ntotal moves 0\ntotal nodes 0\n");
+		return;
+	}
+
+	int threads = (nb_threads < 1) ? 1 : (nb_threads > l.size ? l.size : nb_threads);
+	long nodes = 0;
+	long *results = malloc(sizeof(long) * l.size);
+	if (!results)
+		return;
+
+	#pragma omp parallel for num_threads(threads) reduction(+:nodes)
+	for (int i = 0; i < l.size; i++) {
+		cb_board local = *b;
+		cb_unmake_info info;
+		cb_make_move(&local, l.m[i], 0, &info);
+		results[i] = cb_perft(&local, depth - 1);
+		nodes += results[i];
+	}
+
+	for (int i = 0; i < l.size; i++) {
+		char *s = cb_bitboard_to_string(cb_get_m_bitboard(l.m[i], 0));
+		char *d = cb_bitboard_to_string(cb_get_m_bitboard(l.m[i], 1));
+		printf("%s %s : %ld\n", s, d, results[i]);
+		free(s);
+		free(d);
+	}
+	printf("\ntotal moves %d\ntotal nodes %ld\n", l.size, nodes);
+	free(results);
+}
+
+long cb_perft_2(cb_board *b, int depth) {
+	if (depth == 0)
+		return 1;
+
+	cb_list_move l;
+	cb_unmake_info info;
+	if (depth == 1) {
+		cb_legal_moves(b, &l);
+		return l.size;
+	}
+
+	cb_pseudo_legal_moves(b, &l);
+	long nodes = 0;
+	for (int i = 0; i < l.size; i++) {
+		if (!cb_is_legal_move(b, l.m[i]))
+			continue;
+		cb_make_move(b, l.m[i], 0, &info);
+		nodes += cb_perft_2(b, depth - 1);
+		cb_unmake(b, &info);
+	}
+	return nodes;
+}
+
+void cb_perft_divide_2(cb_board *b, int depth) {
+	if (depth == 0)
+		return;
+
+	cb_list_move l;
+	cb_unmake_info info;
+	cb_pseudo_legal_moves(b, &l);
+	long nodes = 0;
+
+	for (int i = 0; i < l.size; i++) {
+		if (!cb_is_legal_move(b, l.m[i]))
+			continue;
+		cb_make_move(b, l.m[i], 0, &info);
+		long tmp = cb_perft_2(b, depth - 1);
+		nodes += tmp;
+		char *s = cb_bitboard_to_string(cb_get_m_bitboard(l.m[i], 0));
+		char *d = cb_bitboard_to_string(cb_get_m_bitboard(l.m[i], 1));
+		printf("%s %s : %ld\n", s, d, tmp);
+		free(s);
+		free(d);
+		cb_unmake(b, &info);
+	}
+	printf("\ntotal moves %d\ntotal nodes %ld\n", l.size, nodes);
+}
+
+void cb_set_position_2(cb_board *b, cb_rep_struct *rep) {
+	cb_fen_to_board(b, rep, "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq -");
+}
+
+void cb_set_position_3(cb_board *b, cb_rep_struct *rep) {
+	cb_fen_to_board(b, rep, "8/2p5/3p4/KP5r/1R3p1k/8/4P1P1/8 w - -");
+}
+
+void cb_set_position_4(cb_board *b, cb_rep_struct *rep) {
+	cb_fen_to_board(b, rep, "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq -");
+}
+
+void cb_set_position_5(cb_board *b, cb_rep_struct *rep) {
+	cb_fen_to_board(b, rep, "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ -");
+}
+
+void cb_fen_to_board(cb_board *b, cb_rep_struct *rep, char *fen) {
+	memset(b, 0, sizeof(*b));
+	memset(rep->rep_table, 0, sizeof(u64) * 150);
+	b->w_en_passant_flag = -1;
+	b->b_en_passant_flag = -1;
+
+	int index = 0;
+	int col = 7;
+	int file = 0;
+	int sq;
+	int digit;
+	char c;
+
+	while ((c = fen[index]) != '\0' && c != ' ') {
+		if (c == '/') {
+			if (file != 8 || col == 0) {
+				cb_init_board(b, rep);
+				return;
+			}
+			col--;
+			file = 0;
+			index++;
+			continue;
+		}
+
+		digit = is_digit(c);
+		if (digit >= 1 && digit <= 8) {
+			if (file + digit > 8) {
+				cb_init_board(b, rep);
+				return;
+			}
+			file += digit;
+			index++;
+			continue;
+		}
+
+		if (file >= 8) {
+			cb_init_board(b, rep);
+			return;
+		}
+
+		sq = col * 8 + file;
+		switch (c) {
+			case 'r':
+				b->pieces[CB_ROOK] |= 1ULL << sq;
+				break;
+			case 'n':
+				b->pieces[CB_KNIGHT] |= 1ULL << sq;
+				break;
+			case 'b':
+				b->pieces[CB_BISHOP] |= 1ULL << sq;
+				break;
+			case 'q':
+				b->pieces[CB_QUEEN] |= 1ULL << sq;
+				break;
+			case 'k':
+				b->pieces[CB_KING] |= 1ULL << sq;
+				break;
+			case 'p':
+				b->pieces[CB_PAWN] |= 1ULL << sq;
+				break;
+			case 'R':
+				b->pieces[CB_ROOK + 6] |= 1ULL << sq;
+				break;
+			case 'N':
+				b->pieces[CB_KNIGHT + 6] |= 1ULL << sq;
+				break;
+			case 'B':
+				b->pieces[CB_BISHOP + 6] |= 1ULL << sq;
+				break;
+			case 'Q':
+				b->pieces[CB_QUEEN + 6] |= 1ULL << sq;
+				break;
+			case 'K':
+				b->pieces[CB_KING + 6] |= 1ULL << sq;
+				break;
+			case 'P':
+				b->pieces[CB_PAWN + 6] |= 1ULL << sq;
+				break;
+			default:
+				cb_init_board(b, rep);
+				return;
+		}
+		file++;
+		index++;
+	}
+
+	if (col != 0 || file != 8 || fen[index] != ' ') {
+		cb_init_board(b, rep);
+		return;
+	}
+
+	index++;
+	if (fen[index] == 'w')
+		b->turn = CB_WHITE;
+	else if (fen[index] == 'b')
+		b->turn = CB_BLACK;
+	else {
+		cb_init_board(b, rep);
+		return;
+	}
+
+	index++;
+	if (fen[index] != ' ') {
+		cb_init_board(b, rep);
+		return;
+	}
+
+	index++;
+	if (fen[index] == '-')
+		index++;
+	else {
+		int seen = 0;
+		while (fen[index] != '\0' && fen[index] != ' ') {
+			switch (fen[index]) {
+				case 'K':
+					if (b->castles & 1) {
+						cb_init_board(b, rep);
+						return;
+					}
+					b->castles |= 1;
+					break;
+				case 'Q':
+					if (b->castles & 2) {
+						cb_init_board(b, rep);
+						return;
+					}
+					b->castles |= 2;
+					break;
+				case 'k':
+					if (b->castles & 4) {
+						cb_init_board(b, rep);
+						return;
+					}
+					b->castles |= 4;
+					break;
+				case 'q':
+					if (b->castles & 8) {
+						cb_init_board(b, rep);
+						return;
+					}
+					b->castles |= 8;
+					break;
+				default:
+					cb_init_board(b, rep);
+					return;
+			}
+			seen = 1;
+			index++;
+		}
+		if (!seen) {
+			cb_init_board(b, rep);
+			return;
+		}
+	}
+
+	if (fen[index] != ' ') {
+		cb_init_board(b, rep);
+		return;
+	}
+
+	index++;
+	if (fen[index] == '-')
+		index++;
+	else {
+		int col_ep = fen[index] - 'a';
+		index++;
+		int row_ep = fen[index] - '1';
+
+		if (col_ep < 0 || col_ep > 7 || row_ep < 0 || row_ep > 7) {
+			cb_init_board(b, rep);
+			return;
+		}
+
+		if (row_ep == 2)
+			b->w_en_passant_flag = col_ep;
+		else if (row_ep == 5)
+			b->b_en_passant_flag = col_ep;
+		else {
+			cb_init_board(b, rep);
+			return;
+		}
+		index++;
+	}
+
+	if (fen[index] == ' ') {
+		index++;
+		if (is_digit(fen[index]) < 0) {
+			cb_init_board(b, rep);
+			return;
+		}
+
+		int val = 0;
+		while (is_digit(fen[index]) >= 0) {
+			val = val * 10 + (fen[index] - '0');
+			index++;
+		}
+		b->fifty_moves = val;
+
+		if (fen[index] == ' ') {
+			index++;
+			while (is_digit(fen[index]) >= 0)
+				index++;
+		}
+	}
+
+	if (fen[index] != '\0') {
+		cb_init_board(b, rep);
+		return;
+	}
+
+	b->player_pieces[CB_BLACK] = b->pieces[CB_PAWN] | b->pieces[CB_KNIGHT] | b->pieces[CB_BISHOP] | b->pieces[CB_ROOK] | b->pieces[CB_QUEEN] | b->pieces[CB_KING];
+	b->player_pieces[CB_WHITE] = b->pieces[CB_PAWN + 6] | b->pieces[CB_KNIGHT + 6] | b->pieces[CB_BISHOP + 6] | b->pieces[CB_ROOK + 6] | b->pieces[CB_QUEEN + 6] | b->pieces[CB_KING + 6];
+	b->rep = rep;
+	b->rep->idx = 1;
+	b->rep->idx_start_looking = 149;
+}
+
+void cb_print_board_info(cb_board *b) {
+	printf("white pieces %lu\n", b->player_pieces[CB_WHITE]);
+	printf("black pieces %lu\n", b->player_pieces[CB_BLACK]);
+	printf("castles right %u\n", b->castles);
+	printf("turn %d\n", b->turn);
+	printf("w_en_passant %d\n", b->w_en_passant_flag);
+	printf("b_en_passant %d\n", b->b_en_passant_flag);
+	printf("fifty moves %d\n", b->fifty_moves);
+}
+
+void cb_free_board(cb_board *b) {
+	if (b)
+		free(b);
+}
+
+void cb_verify_logics(int depth, int nb_threads) {
+	cb_board b;
+	cb_rep_struct rep;
+
+	cb_init_board(&b, &rep);
+	cb_perft_divide(&b, depth, nb_threads);
+	printf("\n\n");
+
+	cb_set_position_2(&b, &rep);
+	cb_perft_divide(&b, depth, nb_threads);
+	printf("\n\n");
+
+	cb_set_position_3(&b, &rep);
+	cb_perft_divide(&b, depth, nb_threads);
+	printf("\n\n");
+
+	cb_set_position_4(&b, &rep);
+	cb_perft_divide(&b, depth, nb_threads);
+	printf("\n\n");
+
+	cb_set_position_5(&b, &rep);
+	cb_perft_divide(&b, depth, nb_threads);
+}
+
+/* -------------------------------------------------------------------------
+ * uci/uci.c
+ * -----------------------------------------------------------------------*/
+
+cb_move cb_parse_move(cb_board *b, const char *str) {
+	u32 src_idx = (str[1] - '1') * 8 + (str[0] - 'a');
+	u32 dst_idx = (str[3] - '1') * 8 + (str[2] - 'a');
+	cb_list_move l;
+	cb_legal_moves(b, &l);
+	char prom = str[4];
+
+	for (int i = 0; i < l.size; i++) {
+		u32 ms = cb_get_m_int(l.m[i], 0);
+		u32 md = cb_get_m_int(l.m[i], 1);
+		u32 mf = cb_get_m_int(l.m[i], 3);
+
+		if (ms != src_idx || md != dst_idx)
+			continue;
+
+		if (prom == '\0' || prom == ' ' || prom == '\n') {
+			if (mf >= CB_QUEEN && mf <= CB_KNIGHT)
+				continue;
+			return l.m[i];
+		}
+
+		u32 wanted = (prom == 'q') ? CB_QUEEN : (prom == 'r') ? CB_ROOK : (prom == 'b') ? CB_BISHOP : CB_KNIGHT;
+		if (mf == wanted)
+			return l.m[i];
+	}
+
+	return 0;
+}
+
+void cb_move_to_str(cb_move m, char *out) {
+	u32 src = cb_get_m_int(m, 0);
+	u32 dst = cb_get_m_int(m, 1);
+	u32 flag = cb_get_m_int(m, 3);
+
+	out[0] = 'a' + (src % 8);
+	out[1] = '1' + (src / 8);
+	out[2] = 'a' + (dst % 8);
+	out[3] = '1' + (dst / 8);
+	out[4] = '\0';
+
+	if (flag == CB_QUEEN) {
+		out[4] = 'q';
+		out[5] = '\0';
+	}
+	else if (flag == CB_ROOK) {
+		out[4] = 'r';
+		out[5] = '\0';
+	}
+	else if (flag == CB_BISHOP) {
+		out[4] = 'b';
+		out[5] = '\0';
+	}
+	else if (flag == CB_KNIGHT) {
+		out[4] = 'n';
+		out[5] = '\0';
+	}
+}
+
+void cb_handle_position(cb_board *b, cb_rep_struct *rep, const char *line) {
+	const char *p = line + 9;
+
+	if (strncmp(p, "startpos", 8) == 0) {
+		cb_init_board(b, rep);
+		p += 8;
+	}
+	else if (strncmp(p, "fen", 3) == 0) {
+		p += 4;
+		char fen[128];
+		const char *mp = strstr(p, " moves");
+
+		if (mp) {
+			int len = mp - p;
+			strncpy(fen, p, len);
+			fen[len] = '\0';
+			p = mp;
+		}
+		else {
+			strncpy(fen, p, 127);
+			fen[127] = '\0';
+			p += strlen(p);
+		}
+		cb_fen_to_board(b, rep, fen);
+	}
+
+	p = strstr(p, "moves");
+	if (!p)
+		return;
+
+	p += 5;
+	while (*p == ' ')
+		p++;
+
+	while (*p != '\0') {
+		cb_move m = cb_parse_move(b, p);
+		if (m) {
+			cb_unmake_info info;
+			cb_make_move(b, m, 1, &info);
+		}
+		while (*p != ' ' && *p != '\0')
+			p++;
+		while (*p == ' ')
+			p++;
+	}
+}
+
+void cb_handle_go(cb_board *b, int nb_threads) {
+	move m = 0 ; /* REPLACE 0 WITH YOUR 'best_move' function*/
+	if (m == 0) {
+		printf("bestmove 0000\n");
+		fflush(stdout);
+		return;
+	}
+
+	char str[6];
+	cb_move_to_str(m, str);
+	printf("bestmove %s\n", str);
+	fflush(stdout);
+}
+
+void cb_play_game(int nb_threads) {
+	cb_board b;
+	cb_rep_struct rep;
+	char line[4096];
+
+	while (fgets(line, sizeof(line), stdin)) {
+		if (strncmp(line, "uci", 3) == 0) {
+			printf("id name bot\nid author X\nuciok\n");
+			fflush(stdout);
+		}
+		else if (strncmp(line, "isready", 7) == 0) {
+			printf("readyok\n");
+			fflush(stdout);
+		}
+		else if (strncmp(line, "ucinewgame", 10) == 0)
+			cb_init_board(&b, &rep);
+		else if (strncmp(line, "position", 8) == 0)
+			cb_handle_position(&b, &rep, line);
+		else if (strncmp(line, "go", 2) == 0)
+			cb_handle_go(&b, nb_threads);
+		else if (strncmp(line, "quit", 4) == 0)
+			break;
+	}
+}
+
+#endif /* CHESSBIT_IMPLEMENTATION */
+#endif /* CHESS_BIT_H */

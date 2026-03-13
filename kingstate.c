@@ -1,7 +1,7 @@
 #include "header.h"
 
 extern rooksray rrays[64];
-extern bishopray brays[64];
+extern bishopsray brays[64];
 extern u64 kings_table[64];
 
 

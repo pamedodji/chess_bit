@@ -3,7 +3,7 @@
 bitboard knight_table[64];
 bitboard kings_table[64];
 rooksray rrays[64];
-bishopray brays[64];
+bishopsray brays[64];
 
 void init(){
     init_zobrist_tables();
@@ -63,7 +63,7 @@ void init(){
             
         }
     }
-    memset(brays, 0, 64 * sizeof(bishopray));
+    memset(brays, 0, 64 * sizeof(bishopsray));
     int horizontal;
     int vertical ;
     for (int i = 0; i < 64; i++){
@@ -436,22 +436,27 @@ int is_legal_move(const board *b, move m){
 
 
 
-int is_repetition(const board *b){
-    //Saying if the last move caused draw
-    int last = (b -> rep->idx == 0) ? 149 : (b -> rep -> idx - 1);
-    bitboard last_move = (b -> rep) -> rep_table[last];
-    int i = (b -> rep) -> idx_start_looking;
-    int count = 1;
-    do{
-        if (i == 150)
-            i = 0;
-        if((b -> rep) -> rep_table[i] == last_move)
+int is_repetition(const board *b) {
+    int last = (b->rep->idx == 0) ? 149 : (b->rep->idx - 1);
+    bitboard last_move = b->rep->rep_table[last];
+    
+    int i = b->rep->idx_start_looking;
+    int count = 1; 
+
+    while (i != last) {
+        if (b->rep->rep_table[i] == last_move) {
             count++;
+            if (count == 3) 
+                return 1; 
+        }
         i++;
-    }while(i != (last) && count < 3);
+        if (i == 150) {
+            i = 0; 
+        }
+    }
+
     return count == 3;
 }
-
 
 int insufficient_material(const board *b){
     int w = __builtin_popcountll(b -> player_pieces[0]);

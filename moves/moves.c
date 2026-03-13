@@ -91,6 +91,7 @@ void make_move(board *b, move m, int rep, unmake_info *info){
         if (dst == (1ULL << 63))
             b -> castles &= ~4;
     }
+    b -> turn ^= 1; 
     if (rep){
         (b -> rep) -> rep_table[(b -> rep) -> idx] = zobrist_key(b);
         if(b -> rep -> idx >= 149)
@@ -98,7 +99,6 @@ void make_move(board *b, move m, int rep, unmake_info *info){
         else
             (b -> rep -> idx)++;
     }
-    b -> turn ^= 1; 
 }  
 
 
@@ -146,6 +146,6 @@ void unmake(board *b, unmake_info *info){
             (b -> rep -> idx)--;
         b -> rep -> idx_start_looking = info -> rep_idx;
     }
-    
+    b -> fifty_moves--;
     b -> turn ^= 1;
 }

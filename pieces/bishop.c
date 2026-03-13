@@ -5,8 +5,9 @@
 
 
 void bishop_moves(const board *b, u32 sq_idx, list_move *l, uint32_t piece){
+    int opp_turn = b -> turn ^ 1;
     bitboard occupied = b -> player_pieces[BLACK] | b -> player_pieces[WHITE];
-    bitboard opp_piece = b -> player_pieces[b -> turn ^ 1];
+    bitboard opp_piece = b -> player_pieces[opp_turn];
     bitboard n_east;
     bitboard s_east;
     bitboard n_west;
@@ -38,9 +39,31 @@ void bishop_moves(const board *b, u32 sq_idx, list_move *l, uint32_t piece){
         cpy_all_moves &= (cpy_all_moves - 1);
     }
     cpy_all_moves = all_moves & opp_piece;
+    int ind;
     while (cpy_all_moves){
+        ind = 6 * opp_turn;
         trailling_zeros = __builtin_ctzll(cpy_all_moves);
-        l -> m[l -> index] = create_move(sq_idx, trailling_zeros, piece, CAPTURES);
+        while ((b -> pieces[ind] & (1ULL << trailling_zeros)) == 0)
+            ind++;
+        ind -= 6 * (b -> turn == BLACK);
+        switch (ind){
+            case ROOK:
+                l -> m[l -> index] = create_move(sq_idx, trailling_zeros, piece, CAPTURES_ROOK);
+                break;
+            case BISHOP:
+                l -> m[l -> index] = create_move(sq_idx, trailling_zeros, piece, CAPTURES_BISHOP);
+                break;
+            case QUEEN:
+                l -> m[l -> index] = create_move(sq_idx, trailling_zeros, piece, CAPTURES_QUEEN);
+                break;
+            case PAWN:
+                l -> m[l -> index] = create_move(sq_idx, trailling_zeros, piece, CAPTURES_PAWN);
+                break;
+            case KNIGHT:
+                l -> m[l -> index] = create_move(sq_idx, trailling_zeros, piece, CAPTURES_KNIGHT);
+                break;
+        }
+        
         (l -> index)++;
         cpy_all_moves &= (cpy_all_moves - 1);
     }

@@ -12,6 +12,7 @@ void init_board(board *b, rep_struct *r){
     for (int i = 0; i < 5; i++)
         b -> pieces[i] = b -> pieces[i + 6] << 56;
     b -> pieces[5] = ROWS[6];
+    
     b -> castles = 1 + 2 + 4 + 8;
     b -> w_en_passant_flag = -1;
     b -> b_en_passant_flag = -1;
@@ -24,30 +25,12 @@ void init_board(board *b, rep_struct *r){
         b -> player_pieces[WHITE] |= b -> pieces[i];
     b -> rep = r;
     b -> rep -> idx = 1;
-    b -> rep -> idx_start_looking = 0;
+    b -> rep -> idx_start_looking = 149;
     memset(b -> rep -> rep_table, 0, sizeof(bitboard)*150);
     board cpy = *b;
     b -> rep -> rep_table[0] = zobrist_key(&cpy);
 }
 
-void sort(list_move *l_sort){
-    int j = 1;
-    u32 flag;
-    for (int i = 0; i < l_sort -> size; i++){
-        flag = get_m_int(l_sort -> m[i], 3);
-        if (flag == CAPTURES){
-            flag = get_m_int(l_sort -> m[i + j], 3);
-            while (i + j++ < l_sort -> size && flag == CAPTURES)
-                flag = get_m_int(l_sort -> m[i + j], 3);
-            if (i + j == l_sort -> size)
-                return;
-            move temp_move = l_sort -> m[i];
-            l_sort -> m[i] = l_sort -> m[i + j];
-            l_sort -> m[i + j] = temp_move;
-        }
-
-    }
-}
 
 
 
