@@ -125,12 +125,21 @@ typedef struct {
 	u64 n_east, n_west, s_east, s_west;
 } cb_bishopsray;
 
+typedef struct {
+    long wtime;       // ms left for white          (-1 if not provided) 
+    long btime;       // ms left for black          (-1 if not provided) 
+    long winc;        // white increment in ms      (0 if absent)        
+    long binc;        // black increment in ms      (0 if absent)        
+    int  movestogo;   // moves to next time control (0 = unknown)       
+    long movetime;    // exact time per move        (-1 if not provided) 
+    int  depth;       // fixed search depth         (-1 if not provided) 
+} cb_time_control;
+
 /*===========================================================================
  * Global tables (extern declarations)
  *=========================================================================*/
 extern u64 cb_knight_table[64];
 extern u64 cb_kings_table[64];
-extern unsigned int cb_nodes;
 
 extern u64 cb_pos_table[12][64];
 extern u64 cb_zob_k, cb_zob_q, cb_zob_K, cb_zob_Q;
@@ -205,15 +214,11 @@ cb_king_state cb_get_king_state(cb_board *b);
 void cb_init_zobrist_tables();
 u64 cb_zobrist_key(const cb_board *b);
 
-/* game (implemented externally by user) */
-int cb_eval(cb_board *b);
-cb_move cb_best_move(cb_board *b, int depth, int nb_threads, int (*eval)(cb_board *));
-
 /* uci */
 cb_move cb_parse_move(cb_board *b, const char *str);
 void cb_move_to_str(cb_move m, char *out);
 void cb_handle_position(cb_board *b, cb_rep_struct *rep, const char *line);
-void cb_handle_go(cb_board *b, int nb_threads);
+void cb_handle_go(cb_board *b, int nb_threads, const char *line);
 void cb_play_game(int nb_threads);
 
 /*===========================================================================
@@ -323,15 +328,6 @@ static inline void cb_make_move_promotion(cb_board *b, const cb_move m, cb_unmak
 		cb_delete_piece(b, b->turn ^ 1, opp_piece, dst);
 }
 
-static inline int cb_move_score(cb_move m) {
-	int flag = cb_get_m_int(m, 3);
-	int piece = cb_get_m_int(m, 2);
-	if (flag >= CB_CAPTURES_PAWN && flag <= CB_CAPTURES_QUEEN)
-		return flag + 100 + (piece == CB_PAWN) * 100;
-	if (flag <= CB_PAWN)
-		return 200 + flag;
-	return 0;
-}
 
 static inline void cb_debug_board_state(const cb_board *b, int i) {
 	printf("=== i:%d ===\n", i);
@@ -2380,25 +2376,56 @@ void cb_handle_position(cb_board *b, cb_rep_struct *rep, const char *line) {
 			p++;
 	}
 }
+#include "header.h"
 
-void cb_handle_go(cb_board *b, int nb_threads) {
-	move m = 0 ; /* REPLACE 0 WITH YOUR 'best_move' function*/
-	if (m == 0) {
-		printf("bestmove 0000\n");
-		fflush(stdout);
-		return;
-	}
+void cb_handle_go(cb_board *b, int nb_threads, const char *line) {
+    long wtime    = -1, btime = -1;
+    long winc     =  0, binc  = 0;
+    int  movestogo = 0;
+    long movetime  = -1;
+    int  depth     = -1;
 
-	char str[6];
-	cb_move_to_str(m, str);
-	printf("bestmove %s\n", str);
-	fflush(stdout);
+    char buf[512];
+    strncpy(buf, line, sizeof(buf)-1);
+    char *tok = strtok(buf, " ");
+    while (tok) {
+        if      (!strcmp(tok, "wtime"))     { tok = strtok(NULL," "); if(tok) wtime     = atol(tok); }
+        else if (!strcmp(tok, "btime"))     { tok = strtok(NULL," "); if(tok) btime     = atol(tok); }
+        else if (!strcmp(tok, "winc"))      { tok = strtok(NULL," "); if(tok) winc      = atol(tok); }
+        else if (!strcmp(tok, "binc"))      { tok = strtok(NULL," "); if(tok) binc      = atol(tok); }
+        else if (!strcmp(tok, "movestogo")){ tok = strtok(NULL," "); if(tok) movestogo = atoi(tok); }
+        else if (!strcmp(tok, "movetime")) { tok = strtok(NULL," "); if(tok) movetime  = atol(tok); }
+        else if (!strcmp(tok, "depth"))    { tok = strtok(NULL," "); if(tok) depth     = atoi(tok); }
+        tok = strtok(NULL, " ");
+    }
+
+    cb_time_control tc;
+    tc.wtime     = wtime;
+    tc.btime     = btime;
+    tc.winc      = winc;
+    tc.binc      = binc;
+    tc.movestogo = movestogo;
+    tc.movetime  = movetime;
+    tc.depth     = depth;
+
+    cb_move m = 0; /* Replace with yout best_move function*/
+
+    if (m == 0) {
+        printf("bestmove 0000\n");
+        fflush(stdout);
+        return;
+    }
+    char str[6];
+    cb_move_to_str(m, str);
+    printf("bestmove %s\n", str);
+    fflush(stdout);
 }
 
 void cb_play_game(int nb_threads) {
 	cb_board b;
 	cb_rep_struct rep;
 	char line[4096];
+	cb_init_board(&b, &rep);
 
 	while (fgets(line, sizeof(line), stdin)) {
 		if (strncmp(line, "uci", 3) == 0) {
@@ -2414,7 +2441,7 @@ void cb_play_game(int nb_threads) {
 		else if (strncmp(line, "position", 8) == 0)
 			cb_handle_position(&b, &rep, line);
 		else if (strncmp(line, "go", 2) == 0)
-			cb_handle_go(&b, nb_threads);
+			cb_handle_go(&b, nb_threads, line);
 		else if (strncmp(line, "quit", 4) == 0)
 			break;
 	}

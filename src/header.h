@@ -78,6 +78,16 @@ typedef struct{
     u8 size;
 }list_move;
 
+typedef struct {
+    long wtime;       // ms left for white          (-1 if not provided) 
+    long btime;       // ms left for black          (-1 if not provided) 
+    long winc;        // white increment in ms      (0 if absent)        
+    long binc;        // black increment in ms      (0 if absent)        
+    int  movestogo;   // moves to next time control (0 = unknown)       
+    long movetime;    // exact time per move        (-1 if not provided) 
+    int  depth;       // fixed search depth         (-1 if not provided) 
+} time_control;
+
 static const knight_mov n_mov[8] = {{-2, -1}, {-2, 1}, {2, 1}, {2, -1}, {-1, -2}, {-1, 2}, {1, 2}, {1, -2}};
 
 //Zobrist key implementation
@@ -146,15 +156,12 @@ king_state get_king_state(board *b);
 void init_zobrist_tables();
 bitboard zobrist_key(const board *b);
 
-//Game
-int eval(board *b);
-move best_move(board *b, int depth, int nb_threads, int (*eval)(board *));
 
 //Uci
 move parse_move(board *b, const char *str);
 void move_to_str(move m, char *out);
 void handle_position(board *b, rep_struct *rep, const char *line);
-void handle_go(board *b, int nb_threads);
+void handle_go(board *b, int nb_threads, const char *line);
 void play_game(int nb_threads);
 
 /*******************************************************************

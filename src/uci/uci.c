@@ -104,9 +104,39 @@ void handle_position(board *b, rep_struct *rep, const char *line){
     }
 }
 
-void handle_go(board *b, int nb_threads){
-    move m = 0 ; /* REPLACE 0 WITH YOUR 'best_move' function*/
-    if (m == 0){
+void handle_go(board *b, int nb_threads, const char *line) {
+    long wtime    = -1, btime = -1;
+    long winc     =  0, binc  = 0;
+    int  movestogo = 0;
+    long movetime  = -1;
+    int  depth     = -1;
+
+    char buf[512];
+    strncpy(buf, line, sizeof(buf)-1);
+    char *tok = strtok(buf, " ");
+    while (tok) {
+        if      (!strcmp(tok, "wtime"))     { tok = strtok(NULL," "); if(tok) wtime     = atol(tok); }
+        else if (!strcmp(tok, "btime"))     { tok = strtok(NULL," "); if(tok) btime     = atol(tok); }
+        else if (!strcmp(tok, "winc"))      { tok = strtok(NULL," "); if(tok) winc      = atol(tok); }
+        else if (!strcmp(tok, "binc"))      { tok = strtok(NULL," "); if(tok) binc      = atol(tok); }
+        else if (!strcmp(tok, "movestogo")){ tok = strtok(NULL," "); if(tok) movestogo = atoi(tok); }
+        else if (!strcmp(tok, "movetime")) { tok = strtok(NULL," "); if(tok) movetime  = atol(tok); }
+        else if (!strcmp(tok, "depth"))    { tok = strtok(NULL," "); if(tok) depth     = atoi(tok); }
+        tok = strtok(NULL, " ");
+    }
+
+    time_control tc;
+    tc.wtime     = wtime;
+    tc.btime     = btime;
+    tc.winc      = winc;
+    tc.binc      = binc;
+    tc.movestogo = movestogo;
+    tc.movetime  = movetime;
+    tc.depth     = depth;
+
+    move m = 0; /* Replace with yout best_move function*/
+
+    if (m == 0) {
         printf("bestmove 0000\n");
         fflush(stdout);
         return;
@@ -116,7 +146,6 @@ void handle_go(board *b, int nb_threads){
     printf("bestmove %s\n", str);
     fflush(stdout);
 }
-
 void play_game(int nb_threads){
     board b;
     rep_struct rep;
@@ -139,7 +168,7 @@ void play_game(int nb_threads){
             handle_position(&b, &rep, line);
         }
         else if (strncmp(line, "go", 2) == 0){
-            handle_go(&b, nb_threads);
+            handle_go(&b, nb_threads, line);
         }
         else if (strncmp(line, "quit", 4) == 0){
             break;
