@@ -2376,7 +2376,6 @@ void cb_handle_position(cb_board *b, cb_rep_struct *rep, const char *line) {
 			p++;
 	}
 }
-#include "header.h"
 
 void cb_handle_go(cb_board *b, int nb_threads, const char *line) {
     long wtime    = -1, btime = -1;
